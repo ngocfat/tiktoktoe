@@ -27,7 +27,7 @@ export default function DangerSecurityModal({
       setCountdown(5);
       setIsChecked(false);
 
-      // Animation nhấp nháy icon Danger
+      // Pulsing animation for warning icon
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -75,13 +75,13 @@ export default function DangerSecurityModal({
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor="#0F1115" />
 
-        {/* Phần nội dung có thể cuộn linh hoạt */}
+        {/* Scrollable modal content container */}
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Biểu tượng Danger Warning hình tam giác đỏ rực */}
+          {/* Danger warning icon indicator */}
           <View style={styles.iconContainer}>
             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
               <Ionicons name="warning" size={56} color="#EF4444" />
@@ -90,14 +90,14 @@ export default function DangerSecurityModal({
 
           <Text style={styles.dangerTitle}>Danger</Text>
 
-          {/* Đoạn mở đầu chuẩn phong cách MIUI Danger */}
+          {/* Introductory warning header text */}
           <Text style={styles.leadText}>
             "Mở khóa giới hạn tốc độ" là một cài đặt có độ rủi ro cực kỳ cao.
             Nếu bạn bật cài đặt này, tài khoản TikTok của bạn có thể bị hệ thống
             kiểm soát bot tự động áp dụng các hình phạt nghiêm trọng:
           </Text>
 
-          {/* Danh sách các mối nguy hại cụ thể */}
+          {/* Detailed breakdown of risk factors */}
           <View style={styles.riskList}>
             <View style={styles.riskItem}>
               <View style={styles.riskIconBox}>
@@ -136,7 +136,7 @@ export default function DangerSecurityModal({
             </View>
           </View>
 
-          {/* Hộp Checkbox xác nhận tự nguyện */}
+          {/* Voluntary acknowledgement checkbox */}
           <TouchableOpacity
             style={styles.checkboxRow}
             onPress={() => setIsChecked(!isChecked)}
@@ -151,7 +151,7 @@ export default function DangerSecurityModal({
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Cụm 2 nút hành động cố định ở đáy (Fixed Bottom) - Không bao giờ bị che khuất */}
+        {/* Fixed bottom action buttons */}
         <View style={styles.bottomBar}>
           <TouchableOpacity
             style={[

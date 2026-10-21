@@ -37,7 +37,7 @@ export default function ConversationListScreen({
     memoryConversationCache ? memoryConversationCache.filter((c) => c.isFriend) : []
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('FRIENDS'); // Mặc định hiển thị tab Bạn bè
+  const [filterType, setFilterType] = useState('FRIENDS'); // Default to Friends tab
   const [activeScheduleMap, setActiveScheduleMap] = useState(
     scheduleWorker.getActiveConversationMap ? scheduleWorker.getActiveConversationMap() : {}
   );
@@ -58,7 +58,7 @@ export default function ConversationListScreen({
     (sourceList, query, tab, schedMap) => {
       let result = sourceList;
 
-      // 1. Lọc theo Tab Phân Loại
+      // 1. Filter by category tab
       if (tab === 'FRIENDS') {
         result = result.filter((c) => c.isFriend);
       } else if (tab === 'STRANGERS') {
@@ -67,7 +67,7 @@ export default function ConversationListScreen({
         result = result.filter((c) => schedMap[c.conversationId]?.isStreak || schedMap[c.conversationId]?.hasSchedule);
       }
 
-      // 2. Lọc theo từ khóa tìm kiếm
+      // 2. Filter by search keyword
       if (query && query.trim()) {
         const q = query.toLowerCase();
         result = result.filter(
@@ -129,14 +129,14 @@ export default function ConversationListScreen({
     return `${date.getDate()}/${date.getMonth() + 1}`;
   };
 
-  // Tính số lượng cho từng bộ lọc
+  // Calculate item counts for each filter
   const friendsCount = conversations.filter((c) => c.isFriend).length;
   const strangersCount = conversations.filter((c) => c.isStranger).length;
   const streaksCount = conversations.filter(
     (c) => activeScheduleMap[c.conversationId]?.isStreak || activeScheduleMap[c.conversationId]?.hasSchedule
   ).length;
 
-  // Render từng item hội thoại chuẩn TikTok với badge nhận diện
+  // Render conversation item with badge identification
   const renderItem = ({ item }) => {
     const timeStr = formatTimestamp(item.lastMessageTime || item.updatedTime);
     const activeSched = activeScheduleMap[item.conversationId];
@@ -147,7 +147,7 @@ export default function ConversationListScreen({
         activeOpacity={0.65}
         onPress={() => onSelectConversation(item)}
       >
-        {/* Avatar chuẩn TikTok */}
+        {/* Avatar */}
         <View style={styles.avatarWrapper}>
           {item.avatar ? (
             <Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -168,7 +168,7 @@ export default function ConversationListScreen({
             </View>
           )}
 
-          {/* Dấu hiệu góc Avatar: Icon Giữ chuỗi (Flame) hoặc Hẹn giờ (Time) */}
+          {/* Avatar corner indicator: Streak (Flame) or Schedule (Time) */}
           {activeSched?.isStreak ? (
             <View style={styles.avatarStreakIconWrapper}>
               <Ionicons name="flame" size={10} color="#FFFFFF" />
@@ -180,25 +180,25 @@ export default function ConversationListScreen({
           ) : null}
         </View>
 
-        {/* Nội dung thông tin cuộc trò chuyện */}
+        {/* Conversation metadata */}
         <View style={styles.chatInfo}>
           <View style={styles.rowTop}>
             <View style={styles.nameRow}>
-              {/* Nhóm: Label màu TikTok đỏ nổi bật */}
+              {/* Group badge */}
               {item.isGroup ? (
                 <View style={styles.groupBadgeTiktok}>
                   <Ionicons name="people" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
                   <Text style={styles.groupBadgeTiktokText}>Nhóm</Text>
                 </View>
               ) : item.isStranger ? (
-                /* Người lạ: Label kiểu dáng giống TikTok nhưng xám */
+                /* Stranger badge */
                 <View style={[styles.strangerBadgeGray, { backgroundColor: isDarkMode ? '#3F3F46' : '#6B7280' }]}>
                   <Ionicons name="person-outline" size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
                   <Text style={styles.strangerBadgeGrayText}>Người lạ</Text>
                 </View>
-              ) : null /* Bạn bè không cần label */}
+              ) : null /* Friends have no extra badge */}
 
-              {/* Dấu hiệu setup Giữ chuỗi (Streak) hoặc Hẹn giờ */}
+              {/* Streak or schedule status badge */}
               {activeSched?.isStreak ? (
                 <View style={[styles.streakBadge, { backgroundColor: isDarkMode ? 'rgba(249, 115, 22, 0.18)' : '#FFF7ED' }]}>
                   <Ionicons name="flame" size={10} color="#F97316" style={{ marginRight: 2 }} />
@@ -242,7 +242,7 @@ export default function ConversationListScreen({
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* TikTok Top Header */}
+      {/* Top header */}
       <View style={[styles.header, { backgroundColor: theme.bg, borderBottomColor: theme.divider }]}>
         <View style={styles.headerTitleRow}>
           {onBack && (
@@ -259,7 +259,7 @@ export default function ConversationListScreen({
           </View>
         </View>
 
-        {/* Cụm công cụ bên phải: Chuyển Dark/Light Mode & Cài Đặt */}
+        {/* Header right action tools */}
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={[styles.themeToggleBtn, { backgroundColor: theme.surface }]}
@@ -283,7 +283,7 @@ export default function ConversationListScreen({
         </View>
       </View>
 
-      {/* Thanh Tìm Kiếm chuẩn TikTok */}
+      {/* Search bar */}
       <View style={[styles.searchBox, { backgroundColor: theme.inputBg }]}>
         <Ionicons name="search" size={16} color={theme.iconMuted} style={{ marginRight: 8 }} />
         <TextInput
@@ -300,10 +300,10 @@ export default function ConversationListScreen({
         )}
       </View>
 
-      {/* Thanh Filter Bar chuẩn TikTok với icon thư viện */}
+      {/* Filter chips bar */}
       <View style={styles.filterBarWrapper}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBar}>
-          {/* Bộ lọc: Tất cả */}
+          {/* Filter: All */}
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -328,7 +328,7 @@ export default function ConversationListScreen({
             </Text>
           </TouchableOpacity>
 
-          {/* Bộ lọc: Bạn bè */}
+          {/* Filter: Friends */}
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -353,7 +353,7 @@ export default function ConversationListScreen({
             </Text>
           </TouchableOpacity>
 
-          {/* Bộ lọc: Người lạ */}
+          {/* Filter: Strangers */}
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -378,7 +378,7 @@ export default function ConversationListScreen({
             </Text>
           </TouchableOpacity>
 
-          {/* Bộ lọc: Giữ chuỗi */}
+          {/* Filter: Streaks */}
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -405,7 +405,7 @@ export default function ConversationListScreen({
         </ScrollView>
       </View>
 
-      {/* Trạng Thái Tải Hoặc Lỗi */}
+      {/* Loading and error states */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.tiktokRed} />

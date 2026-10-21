@@ -38,41 +38,41 @@ function MainApp() {
   const { theme, isDarkMode } = useTheme();
   const [cookieStr, setCookieStr] = useState(cookieObjToString(DEFAULT_SESSION_COOKIES));
 
-  // Mặc định khởi động vào HUB HomeScreen thay vì vào thẳng tin nhắn
+  // Default to HOME hub screen instead of directly into messages
   const [currentScreen, setCurrentScreen] = useState(cookieStr ? 'HOME' : 'LOGIN');
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [sessionKey, setSessionKey] = useState(0);
   const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
 
-  // Lưu vết lịch sử trang (Point 15: Quay lại trang trước thay vì thoát app)
+  // Track navigation history stack for back-press behavior
   const [navigationHistory, setNavigationHistory] = useState(['HOME']);
   const historyRef = useRef(['HOME']);
 
-  // URL truyền nhanh vào trình tải video
+  // Initial URL passed into video downloader
   const [downloaderInitialUrl, setDownloaderInitialUrl] = useState('');
 
-  // Animation mượt mà khi chuyển tab/trang (Point 14)
+  // Smooth transitions for screen and tab changes
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const translateYAnim = useRef(new Animated.Value(0)).current;
 
-  // Cập nhật ref mỗi khi history thay đổi
+  // Synchronize ref whenever history changes
   const updateHistory = (newHistory) => {
     historyRef.current = newHistory;
     setNavigationHistory(newHistory);
   };
 
-  // Hàm điều hướng chuyên nghiệp có lưu vết
+  // State-tracked navigation helper
   const navigateTo = (screenName) => {
     if (screenName === currentScreen) return;
 
     const prev = historyRef.current;
-    // Tránh lưu trùng lặp nếu quay lại chính trang trước đó
+    // Prevent duplicate entries in history stack
     const newHistory = [...prev.filter((s) => s !== screenName), screenName];
     updateHistory(newHistory);
     setCurrentScreen(screenName);
   };
 
-  // Quay lại trang trước trong lịch sử
+  // Pop and navigate back in history stack
   const goBack = () => {
     if (currentScreen === 'CHAT_DETAIL') {
       setSelectedConversation(null);
@@ -83,7 +83,7 @@ function MainApp() {
     const currentHist = historyRef.current;
     if (currentHist.length > 1) {
       const nextHist = [...currentHist];
-      nextHist.pop(); // Bỏ trang hiện tại
+      nextHist.pop(); // Remove current screen
       const prevScreen = nextHist[nextHist.length - 1];
       updateHistory(nextHist);
       setCurrentScreen(prevScreen);
@@ -96,10 +96,10 @@ function MainApp() {
       return true;
     }
 
-    return false; // Ở trang gốc HOME -> cho phép thoát app
+    return false; // At root HOME screen: allow system back to exit
   };
 
-  // Hiệu ứng animation chuyển cảnh
+  // Screen transition animation effect
   useEffect(() => {
     fadeAnim.setValue(0.5);
     translateYAnim.setValue(10);
@@ -119,7 +119,7 @@ function MainApp() {
     ]).start();
   }, [currentScreen]);
 
-  // Lắng nghe nút quay lại phần cứng trên Android & vuốt cử chỉ (Point 15)
+  // Handle Android hardware back button and gestures
   useEffect(() => {
     const onBackPress = () => {
       return goBack();
@@ -129,7 +129,7 @@ function MainApp() {
     return () => backHandlerSub.remove();
   }, [currentScreen]);
 
-  // Nạp cookie đã lưu từ AsyncStorage khi mở app và kiểm tra ngay các task đến hạn
+  // Load persisted session from AsyncStorage on launch and trigger pending tasks
   useEffect(() => {
     AsyncStorage.getItem(COOKIE_STORAGE_KEY).then((saved) => {
       if (saved && saved.trim()) {
@@ -142,8 +142,8 @@ function MainApp() {
       }
     });
 
-    // Lắng nghe khi người dùng chuyển trạng thái app (active / background)
-    // Tối ưu pin: Tắt Worker timer và gỡ WebView ngầm khi ẩn app xuống nền
+    // Monitor app state changes (active / background)
+    // Battery optimization: pause JS timer when app enters background
     const sub = AppState.addEventListener('change', (nextState) => {
       const active = nextState === 'active';
       setIsAppActive(active);
@@ -152,8 +152,7 @@ function MainApp() {
         scheduleWorker.startWorker();
         scheduleWorker.checkAndExecutePendingTasks();
       } else {
-        // Tạm dừng timer JS khi app xuống background
-        // Android AlarmManager + HeadlessJS chịu trách nhiệm chạy ngầm đúng giờ
+        // Pause JS timer; Android AlarmManager + HeadlessJS handle background execution
         scheduleWorker.stopWorker();
       }
     });
@@ -163,14 +162,14 @@ function MainApp() {
     };
   }, []);
 
-  // Xử lý khi WebView ngầm tự động cập nhật token mới
+  // Handler for background token refresh events
   const handleTokenUpdated = (newCookies) => {
     setCookieStr(newCookies);
     AsyncStorage.setItem(COOKIE_STORAGE_KEY, newCookies).catch(() => {});
     scheduleWorker.updateAllPendingCookies(newCookies);
   };
 
-  // Xử lý đăng nhập thành công từ WebView
+  // Handler for successful login from WebView
   const handleLoginSuccess = (newCookies) => {
     clearConversationCache();
     setCookieStr(newCookies);
@@ -180,7 +179,7 @@ function MainApp() {
     updateHistory(['HOME']);
   };
 
-  // Đổi tài khoản / Đăng xuất hoàn toàn
+  // Sign out and clear cached credentials
   const handleLogout = () => {
     clearConversationCache();
     setCookieStr('');
@@ -191,30 +190,30 @@ function MainApp() {
     updateHistory(['LOGIN']);
   };
 
-  // Chọn 1 cuộc trò chuyện
+  // Select conversation and navigate to detail
   const handleSelectConversation = (conv) => {
     setSelectedConversation(conv);
     setCurrentScreen('CHAT_DETAIL');
   };
 
-  // Quay lại danh sách trò chuyện
+  // Return to conversations list
   const handleBackToConversations = () => {
     setSelectedConversation(null);
     navigateTo('CONVERSATIONS');
   };
 
-  // Chuyển tới màn hình Cài đặt
+  // Navigate to settings screen
   const handleOpenSettings = () => {
     navigateTo('SETTINGS');
   };
 
-  // Mở trình tải video với link truyền sẵn từ Home
+  // Navigate to video downloader with prefilled URL
   const handleOpenDownloaderWithUrl = (url) => {
     setDownloaderInitialUrl(url);
     navigateTo('DOWNLOADER');
   };
 
-  // Đảm bảo khoảng cách an toàn cho Dynamic Island / Camera tai thỏ và Navigation Bar bên dưới
+  // Safe area insets for notches, status bar, and bottom navigation
   const safeTop = Platform.OS === 'android' ? Math.max(RNStatusBar.currentHeight || 0, 38) + 10 : 12;
   const safeBottom = Platform.OS === 'android' ? (currentScreen === 'CHAT_DETAIL' ? 18 : 6) : 10;
 
@@ -230,7 +229,7 @@ function MainApp() {
         />
       )}
 
-      {/* 1. Màn hình Trung tâm Hub (HOME) */}
+      {/* 1. Home Hub screen */}
       {cookieStr && currentScreen === 'HOME' && (
         <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] }]}>
           <HomeScreen
@@ -242,7 +241,7 @@ function MainApp() {
         </Animated.View>
       )}
 
-      {/* 2. Màn hình Hộp thư & Giữ chuỗi (Giữ mounted để không bị refetch liên tục) */}
+      {/* 2. Inbox & streak list (kept mounted to prevent redundant refetches) */}
       {cookieStr ? (
         <Animated.View
           style={[
@@ -261,7 +260,7 @@ function MainApp() {
         </Animated.View>
       ) : null}
 
-      {/* 3. Màn hình Chi tiết Chat */}
+      {/* 3. Chat Detail screen */}
       {currentScreen === 'CHAT_DETAIL' && selectedConversation && (
         <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] }]}>
           <ChatDetailScreen
@@ -272,7 +271,7 @@ function MainApp() {
         </Animated.View>
       )}
 
-      {/* 4. Màn hình Tải Video TikTok Không Logo */}
+      {/* 4. Video Downloader screen */}
       {cookieStr && currentScreen === 'DOWNLOADER' && (
         <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] }]}>
           <VideoDownloaderScreen
@@ -283,7 +282,7 @@ function MainApp() {
         </Animated.View>
       )}
 
-      {/* 5. Màn hình Cài đặt */}
+      {/* 5. Settings screen */}
       {cookieStr && currentScreen === 'SETTINGS' && (
         <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateY: translateYAnim }] }]}>
           <SettingsScreen
@@ -294,7 +293,7 @@ function MainApp() {
         </Animated.View>
       )}
 
-      {/* Thanh Điều Hướng Đáy (Bottom Navigation Bar) xuất hiện ở 4 tab chính */}
+      {/* Bottom Navigation Bar visible across primary tabs */}
       {cookieStr && currentScreen !== 'LOGIN' && currentScreen !== 'CHAT_DETAIL' && (
         <BottomNavBar
           activeTab={['HOME', 'CONVERSATIONS', 'DOWNLOADER', 'SETTINGS'].includes(currentScreen) ? currentScreen : 'HOME'}
@@ -302,7 +301,7 @@ function MainApp() {
         />
       )}
 
-      {/* Background Token Refresher: Chỉ nạp khi app ở Foreground (tiết kiệm 100% RAM & socket ngầm khi ẩn app) */}
+      {/* Background Token Refresher: active only while app is in foreground */}
       {isAppActive && cookieStr && currentScreen !== 'LOGIN' ? (
         <BackgroundTokenRefresher
           enabled={true}

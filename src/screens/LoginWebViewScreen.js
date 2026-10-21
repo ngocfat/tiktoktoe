@@ -25,7 +25,7 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
   const [extracting, setExtracting] = useState(false);
   const webViewRef = useRef(null);
 
-  // Script tự động kiểm tra cookie và trạng thái đăng nhập
+  // Automated cookie detection and login state polling script
   const injectedCheckCookies = `
     (function() {
       var checkTimer = setInterval(function() {
@@ -46,16 +46,16 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
     true;
   `;
 
-  // Xóa sạch toàn bộ phiên cũ: hủy WebView cũ và tạo một WebView Incognito mới 100%
+  // Force logout: resets session state and reloads WebView in clean incognito container
   const handleForceLogout = () => {
     setIsLoggedInDetected(false);
     setCapturedCookies('');
     setCurrentUrl('https://www.tiktok.com/login');
     setWebViewKey((prev) => prev + 1);
-    Alert.alert('Đã xóa phiên', 'Đã hủy phiên làm việc cũ. WebView đang mở lại ở chế độ ẩn danh hoàn toàn sạch.');
+    Alert.alert('Session Cleared', 'Previous session invalidated. WebView reset to clean incognito container.');
   };
 
-  // Chuyển chế độ đăng nhập trực tiếp (Mã QR hoặc Email/Mật khẩu)
+  // Switch between login modes (QR Code, Email/Password, or All/OAuth)
   const navigateLoginMode = (url) => {
     setCurrentUrl(url);
     if (webViewRef.current) {
@@ -63,7 +63,7 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
     }
   };
 
-  // Tính năng: Trích xuất Cookies trực tiếp từ App TikTok thật (qua ADB Bridge Server hoặc Session thật đã lưu)
+  // Feature: Extract cookies directly from native TikTok app via ADB Bridge Server or saved session
   const handleExtractFromRealApp = async () => {
     setExtracting(true);
     const bridgeUrls = [
@@ -89,7 +89,7 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
           }
         }
       } catch (e) {
-        // Tiếp tục thử URL tiếp theo
+        // Continue to next bridge endpoint
       }
     }
 
@@ -97,11 +97,11 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
 
     if (extractedData && extractedData.cookie_string) {
       Alert.alert(
-        'Trích Xuất Thành Công',
-        `Đã đọc thành công cookies từ App TikTok thật!\n• Nickname: ${extractedData.nickname || 'N/A'}\n• UID: ${extractedData.uid || 'N/A'}\n• Số cookie: ${Object.keys(extractedData.cookies).length}`,
+        'Extraction Successful',
+        `Successfully extracted cookies from native TikTok app!\n• Nickname: ${extractedData.nickname || 'N/A'}\n• UID: ${extractedData.uid || 'N/A'}\n• Cookie count: ${Object.keys(extractedData.cookies).length}`,
         [
           {
-            text: 'Vào Hộp Thư Ngay',
+            text: 'Enter Inbox Now',
             onPress: () => onLoginSuccess(extractedData.cookie_string),
           },
         ]
@@ -109,14 +109,14 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
       return;
     }
 
-    // Nếu ADB chưa bật máy chủ thì sử dụng Session của App thật đã trích xuất sẵn
+    // Fallback to pre-extracted native app session if bridge server is offline
     const realCookieStr = getRealAppCookieString();
     Alert.alert(
-      'Nạp Session App Thật',
-      `Đang nạp bộ Cookies đã trích xuất từ App TikTok thật (RainX - UID: ${REAL_APP_SESSION.uid})!`,
+      'Load Native Session',
+      `Loading cookies extracted from native TikTok app (RainX - UID: ${REAL_APP_SESSION.uid})`,
       [
         {
-          text: 'Vào Hộp Thư Ngay',
+          text: 'Enter Inbox Now',
           onPress: () => onLoginSuccess(realCookieStr),
         },
       ]
@@ -133,7 +133,7 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
         }
       }
     } catch (e) {
-      // Bỏ qua lỗi parse
+      // Ignore JSON parse error
     }
   };
 
@@ -150,14 +150,14 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
       return;
     }
 
-    // Sử dụng bộ cookie mặc định nếu chưa bắt được
+    // Fallback to default sample session cookies if none intercepted
     const defaultCookieStr = cookieObjToString(DEFAULT_SESSION_COOKIES);
     onLoginSuccess(defaultCookieStr);
   };
 
   const handleApplyManualCookie = () => {
     if (!manualCookieInput.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng dán chuỗi cookie vào ô nhập!');
+      Alert.alert('Error', 'Please paste cookie string into the input field.');
       return;
     }
     onLoginSuccess(manualCookieInput.trim());
@@ -165,22 +165,22 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header Điều Khiển */}
+      {/* Header bar */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <View style={styles.titleRow}>
             <Ionicons name="logo-tiktok" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.title}>Đăng Nhập TikTok</Text>
+            <Text style={styles.title}>TikTok Login</Text>
           </View>
           <Text style={styles.subtitle}>
-            {isLoggedInDetected ? 'Đã phát hiện đăng nhập' : 'Chọn hình thức đăng nhập bên dưới'}
+            {isLoggedInDetected ? 'Login detected' : 'Select login method below'}
           </Text>
         </View>
 
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleForceLogout}>
             <Ionicons name="trash-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.logoutBtnText}>Xóa Nick</Text>
+            <Text style={styles.logoutBtnText}>Reset</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -188,12 +188,12 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
             onPress={() => setShowManualPaste(!showManualPaste)}
           >
             <Ionicons name="clipboard-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.manualBtnText}>Dán Cookie</Text>
+            <Text style={styles.manualBtnText}>Paste Cookie</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Thanh Nút: Trích Xuất Cookies Trực Tiếp Từ App Thật */}
+      {/* Action bar: Extract cookies from native app */}
       <View style={styles.extractBar}>
         <TouchableOpacity
           style={styles.extractBtn}
@@ -206,19 +206,19 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
             <Ionicons name="phone-portrait-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
           )}
           <Text style={styles.extractBtnText}>
-            {extracting ? 'Đang đọc dữ liệu App thật...' : 'Trích Xuất Cookies Từ App TikTok Thật'}
+            {extracting ? 'Reading native app data...' : 'Extract Cookies from Native TikTok App'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Thanh Điều Hướng Chế Độ Đăng Nhập Của WebView */}
+      {/* WebView navigation mode tabs */}
       <View style={styles.modeTabs}>
         <TouchableOpacity
           style={[styles.tabBtn, currentUrl.includes('/qrcode') && styles.tabBtnActive]}
           onPress={() => navigateLoginMode('https://www.tiktok.com/login/qrcode')}
         >
           <Ionicons name="qr-code-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-          <Text style={styles.tabBtnText}>Xem Mã QR</Text>
+          <Text style={styles.tabBtnText}>QR Code</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -226,7 +226,7 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
           onPress={() => navigateLoginMode('https://www.tiktok.com/login/phone-or-email/email')}
         >
           <Ionicons name="mail-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-          <Text style={styles.tabBtnText}>Email / Mật Khẩu</Text>
+          <Text style={styles.tabBtnText}>Email / Password</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -234,14 +234,14 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
           onPress={() => navigateLoginMode('https://www.tiktok.com/login')}
         >
           <Ionicons name="globe-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-          <Text style={styles.tabBtnText}>Google / Tất Cả</Text>
+          <Text style={styles.tabBtnText}>Google / All</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Hộp Dán Cookie Thủ Công */}
+      {/* Manual cookie paste box */}
       {showManualPaste && (
         <View style={styles.pasteBox}>
-          <Text style={styles.pasteLabel}>Dán chuỗi Cookie từ trình duyệt hoặc app khác:</Text>
+          <Text style={styles.pasteLabel}>Paste cookie string from browser or external session:</Text>
           <TextInput
             style={styles.pasteInput}
             multiline
@@ -253,31 +253,31 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
           <View style={styles.pasteActions}>
             <TouchableOpacity style={styles.pasteSubmit} onPress={handleApplyManualCookie}>
               <Ionicons name="checkmark-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.pasteSubmitText}>Đăng Nhập Bằng Cookie Này</Text>
+              <Text style={styles.pasteSubmitText}>Apply This Cookie</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.pasteQuick}
               onPress={() => onLoginSuccess(cookieObjToString(DEFAULT_SESSION_COOKIES))}
             >
               <Ionicons name="flash-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.pasteQuickText}>Cookie Mẫu</Text>
+              <Text style={styles.pasteQuickText}>Sample Cookie</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* Banner thông báo khi đã vào được Feed */}
+      {/* Login detected banner */}
       {isLoggedInDetected && (
         <TouchableOpacity style={styles.successBanner} onPress={handleEnterInbox}>
           <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.successBannerText}>
-            ĐÃ ĐĂNG NHẬP XONG! BẤM VÀO ĐÂY ĐỂ VÀO HỘP THƯ
+            LOGIN DETECTED! TAP HERE TO ENTER INBOX
           </Text>
           <Ionicons name="arrow-forward-outline" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
       )}
 
-      {/* Cửa Sổ WebView (Chế độ Incognito để không bị nhớ nick cũ) */}
+      {/* Incognito WebView container */}
       <View style={styles.webContainer}>
         <WebView
           key={`webview_session_${webViewKey}`}
@@ -299,17 +299,17 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
         {loading && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.loadingText}>Đang tải trang đăng nhập TikTok...</Text>
+            <Text style={styles.loadingText}>Loading TikTok login page...</Text>
           </View>
         )}
       </View>
 
-      {/* Thanh điều khiển dưới cùng */}
+      {/* Bottom confirmation bar */}
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.enterBtn} onPress={handleEnterInbox}>
           <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.enterBtnText}>
-            {isLoggedInDetected ? 'XÁC NHẬN VÀO HỘP THƯ NGAY' : 'ĐÃ ĐĂNG NHẬP XONG - VÀO CHAT'}
+            {isLoggedInDetected ? 'CONFIRM AND ENTER INBOX' : 'ENTER INBOX'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -449,47 +449,48 @@ const styles = StyleSheet.create({
   },
   pasteActions: {
     flexDirection: 'row',
-    marginTop: 8,
-    justifyContent: 'space-between',
+    marginTop: 10,
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   pasteSubmit: {
     backgroundColor: '#FE2C55',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 6,
   },
   pasteSubmitText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   pasteQuick: {
-    backgroundColor: '#262830',
+    backgroundColor: '#374151',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 6,
   },
   pasteQuickText: {
     color: '#FFFFFF',
     fontSize: 12,
+    fontWeight: '600',
   },
   successBanner: {
     backgroundColor: '#059669',
     flexDirection: 'row',
-    paddingVertical: 11,
-    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   successBannerText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 0.3,
+    fontSize: 13,
   },
   webContainer: {
     flex: 1,
@@ -501,17 +502,18 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 15, 18, 0.9)',
+    backgroundColor: '#0F0F12',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    color: '#FFFFFF',
+    color: '#8A8B91',
     marginTop: 12,
     fontSize: 13,
   },
   bottomBar: {
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#16171B',
     borderTopWidth: 1,
     borderTopColor: '#222329',
@@ -519,15 +521,14 @@ const styles = StyleSheet.create({
   enterBtn: {
     backgroundColor: '#FE2C55',
     flexDirection: 'row',
-    paddingVertical: 14,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 8,
   },
   enterBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
+    fontWeight: '700',
   },
 });

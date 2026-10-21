@@ -11,7 +11,7 @@ class StreakAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val taskId = intent.getStringExtra("taskId") ?: ""
 
-        // Đánh thức CPU để Headless JS khởi động
+        // Acquire CPU wake lock for Headless JS initialization
         HeadlessJsTaskService.acquireWakeLockNow(context)
 
         val serviceIntent = Intent(context, StreakHeadlessService::class.java).apply {

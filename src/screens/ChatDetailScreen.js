@@ -22,13 +22,13 @@ import { generateStreakMessageWithGemini } from '../services/geminiService';
 export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const { theme, isDarkMode, toggleTheme } = useTheme();
 
-  // Tab chuyển đổi: Gửi Tự Động (Auto Send) vs Hẹn Giờ Gửi (Scheduled Worker)
+  // Mode toggle: Auto Send vs Scheduled Worker
   const [activeTab, setActiveTab] = useState('AUTO_SEND'); // 'AUTO_SEND' | 'SCHEDULE'
 
-  // Chế độ mở khóa tốc độ (mặc định: Safe Mode = false)
+  // Unlocked speed mode (default: Safe Mode = false)
   const [unlockedMode, setUnlockedMode] = useState(false);
 
-  // --- CẤU HÌNH GỬI TỰ ĐỘNG (SPAM / AUTO SEND) ---
+  // --- AUTO SEND CONFIGURATION ---
   const [messageTemplate, setMessageTemplate] = useState('Chào bạn, đây là tin nhắn tự động test!');
   const [totalCount, setTotalCount] = useState('5');
   const [delaySeconds, setDelaySeconds] = useState('5');
@@ -38,7 +38,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const [progress, setProgress] = useState({ current: 0, total: 0, success: 0, failed: 0 });
   const [logs, setLogs] = useState([]);
 
-  // --- CẤU HÌNH HẸN GIỜ GỬI (SCHEDULE WORKER) ---
+  // --- SCHEDULE WORKER CONFIGURATION ---
   const now = new Date();
   const defaultHour = String((now.getHours() + (now.getMinutes() >= 55 ? 1 : 0)) % 24).padStart(2, '0');
   const defaultMin = String((now.getMinutes() + 5) % 60).padStart(2, '0');
@@ -50,7 +50,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const [useAiDaily, setUseAiDaily] = useState(true);
   const [scheduledTasks, setScheduledTasks] = useState([]);
 
-  // Trạng thái gọi Gemini AI gợi ý câu nói
+  // Gemini AI suggestion state
   const [isGeneratingAiAuto, setIsGeneratingAiAuto] = useState(false);
   const [isGeneratingAiSchedule, setIsGeneratingAiSchedule] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
@@ -58,7 +58,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const isStopRequested = useRef(false);
   const logScrollRef = useRef(null);
 
-  // Đăng ký nhận cập nhật từ Background Worker
+  // Subscribe to background worker updates
   useEffect(() => {
     const unsubscribe = scheduleWorker.subscribe((allTasks) => {
       const convTasks = allTasks.filter(
@@ -69,7 +69,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     return unsubscribe;
   }, [conversation.conversationId]);
 
-  // Nạp trạng thái mở khóa tốc độ (Safe Mode vs Unlocked Mode)
+  // Load speed unlock mode (Safe Mode vs Unlocked Mode)
   useEffect(() => {
     AsyncStorage.getItem('TIKTOKTOE_UNLOCKED_SPEED_MODE').then((val) => {
       const isUnlocked = val === 'true';
@@ -101,7 +101,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
 
   const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Gửi thử 1 tin nhắn đơn
+  // Send a single test message
   const handleSendSingle = async () => {
     if (!messageTemplate.trim()) {
       Alert.alert('Cảnh báo', 'Vui lòng nhập nội dung tin nhắn!');
@@ -146,7 +146,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     }
   };
 
-  // Thực hiện vòng lặp gửi tự động
+  // Execute auto send loop
   const doExecuteAutoSend = async (count, delay) => {
     isStopRequested.current = false;
     setIsRunning(true);
@@ -237,7 +237,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     addLog(`Hoàn thành phiên gửi! Thành công: ${successCount}, Thất bại: ${failedCount}`, 'success');
   };
 
-  // Khởi động vòng lặp gửi tin nhắn tự động liên tục
+  // Start continuous auto send loop
   const handleStartAutoSend = async () => {
     let count = parseInt(totalCount, 10);
     let delay = parseFloat(delaySeconds);
@@ -253,7 +253,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     }
 
     if (!unlockedMode) {
-      // Rào chắn Safe Mode
+      // Safe Mode barrier
       if (count > 5) {
         Alert.alert(
           'Chế Độ An Toàn (Safe Mode)',
@@ -271,7 +271,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
         return;
       }
     } else {
-      // Chế độ tự do đã mở khóa: kiểm tra nếu thông số nguy hiểm -> cảnh báo xác nhận
+      // Unlocked mode: check dangerous parameters and prompt confirmation
       if (count > 5 || delay < 3) {
         Alert.alert(
           '[Xac Nhan] Gui Toc Do Cao',
@@ -297,7 +297,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     addLog('Đang yêu cầu dừng...', 'warning');
   };
 
-  // --- TÍNH NĂNG GEMINI AI GỢI Ý CÂU GIỮ CHUỖI ---
+  // --- GEMINI AI STREAK MESSAGE SUGGESTION ---
   const handleGenerateAiForAuto = async () => {
     setIsGeneratingAiAuto(true);
     try {
@@ -327,7 +327,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     }
   };
 
-  // --- HẸN GIỜ GỬI (WORKER SCHEDULER ACTIONS) ---
+  // --- SCHEDULE WORKER ACTIONS ---
   const applyQuickTimePreset = (minutesToAdd) => {
     const future = new Date(Date.now() + minutesToAdd * 60 * 1000);
     setTargetHour(String(future.getHours()).padStart(2, '0'));
@@ -355,7 +355,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     const targetDate = new Date();
     targetDate.setHours(h, m, 0, 0);
 
-    // Nếu thời điểm này hôm nay đã qua, tự động dời sang ngày mai
+    // If target time has passed today, schedule for tomorrow
     if (targetDate.getTime() <= Date.now()) {
       targetDate.setDate(targetDate.getDate() + 1);
     }
@@ -397,7 +397,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header chuẩn TikTok */}
+      {/* Top header */}
       <View style={[styles.header, { backgroundColor: theme.bg, borderBottomColor: theme.divider }]}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={theme.iconColor} />
@@ -424,7 +424,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           </View>
         </View>
 
-        {/* Nút Chuyển Dark/Light Mode */}
+        {/* Theme switch button */}
         <TouchableOpacity
           style={[styles.themeToggleBtn, { backgroundColor: theme.surface }]}
           onPress={toggleTheme}
@@ -439,7 +439,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
       </View>
 
       <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-        {/* Card Đoạn Chat Mục Tiêu */}
+        {/* Target conversation card */}
         <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.cardHeaderRow}>
             <Ionicons name="chatbox-ellipses-outline" size={16} color={theme.textPrimary} style={{ marginRight: 6 }} />
@@ -457,7 +457,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           </Text>
         </View>
 
-        {/* Tab chọn Chế độ: Gửi Tự Động vs Hẹn Giờ Worker */}
+        {/* Mode tabs: Auto Send vs Schedule Worker */}
         <View style={[styles.tabBar, { backgroundColor: theme.surface }]}>
           <TouchableOpacity
             style={[
@@ -508,7 +508,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           </TouchableOpacity>
         </View>
 
-        {/* ===================== TAB 1: GỬI TỰ ĐỘNG LIÊN TỤC ===================== */}
+        {/* ===================== TAB 1: CONTINUOUS AUTO SEND ===================== */}
         {activeTab === 'AUTO_SEND' ? (
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeaderRow}>
@@ -516,7 +516,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Cấu Hình Gửi Tự Động</Text>
             </View>
 
-            {/* Banner trạng thái Safe Mode / Unlocked Mode */}
+            {/* Mode status banner */}
             <View
               style={[
                 styles.safeModeBanner,
@@ -717,7 +717,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
             </View>
           </View>
         ) : (
-          /* ===================== TAB 2: HẸN GIỜ GỬI (WORKER) ===================== */
+          /* ===================== TAB 2: SCHEDULED WORKER ===================== */
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeaderRow}>
               <Ionicons name="alarm-outline" size={18} color={theme.tiktokRed} style={{ marginRight: 6 }} />
@@ -761,7 +761,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               placeholderTextColor={theme.textMuted}
             />
 
-            {/* Chọn nhanh thời gian */}
+            {/* Quick time presets */}
             <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Chọn nhanh:</Text>
             <View style={styles.quickPresetRow}>
               {[1, 5, 15, 30, 60].map((mins) => (
@@ -778,7 +778,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               ))}
             </View>
 
-            {/* Nhập giờ:phút cụ thể */}
+            {/* Specific time input */}
             <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>
               Hẹn giờ chính xác (24h):
             </Text>
@@ -812,7 +812,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               </View>
             </View>
 
-            {/* Tùy chọn lặp lại mỗi ngày để giữ chuỗi */}
+            {/* Daily streak repeat option */}
             <View style={[styles.switchRow, { borderTopColor: theme.divider }]}>
               <View style={{ flex: 1, marginRight: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -833,7 +833,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               />
             </View>
 
-            {/* Tùy chọn tự động đổi câu mới bằng Gemini AI mỗi ngày */}
+            {/* Daily Gemini AI message rotation */}
             {repeatDaily && (
               <View style={[styles.switchRow, { borderTopColor: theme.divider, marginTop: 8 }]}>
                 <View style={{ flex: 1, marginRight: 10 }}>
@@ -875,7 +875,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               </Text>
             </TouchableOpacity>
 
-            {/* Danh sách các lịch hẹn của hội thoại này */}
+            {/* Scheduled tasks for this conversation */}
             <View style={[styles.scheduleListHeader, { borderTopColor: theme.divider }]}>
               <Text style={[styles.scheduleListTitle, { color: theme.textPrimary }]}>
                 Lịch Hẹn Của Cuộc Trò Chuyện Này ({scheduledTasks.length})
@@ -943,7 +943,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                       )}
                     </View>
 
-                    {/* Trạng thái & Đồng hồ đếm ngược trực tiếp */}
+                    {/* Status and live countdown timer */}
                     <View style={styles.taskCardBottom}>
                       {task.status === 'PENDING' ? (
                         <View style={styles.countdownBadge}>
@@ -989,7 +989,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           </View>
         )}
 
-        {/* Thanh Tiến Trình Khi Chạy Tự Động */}
+        {/* Auto-run progress bar */}
         {isRunning && (
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeaderRow}>
@@ -1020,7 +1020,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           </View>
         )}
 
-        {/* Nhật Ký Hoạt Động (Live Log Terminal) */}
+        {/* Live log terminal */}
         <View style={[styles.card, { backgroundColor: theme.card }]}>
           <View style={styles.cardHeaderRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

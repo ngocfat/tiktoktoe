@@ -52,14 +52,14 @@ export default function BottomNavBar({ activeTab, onSelectTab, conversationCount
             <View style={styles.iconContainer}>
               <Ionicons name={iconName} size={22} color={tintColor} />
 
-              {/* Huy hiệu số lượng tin nhắn */}
+              {/* Unread message count badge */}
               {tab.badge && (
                 <View style={[styles.badge, { backgroundColor: theme.tiktokRed }]}>
                   <Text style={styles.badgeText}>{tab.badge}</Text>
                 </View>
               )}
 
-              {/* Tag HOT hoặc MỚI */}
+              {/* Tag for highlight / new feature */}
               {tab.tag && (
                 <View style={styles.hotTag}>
                   <Text style={styles.hotTagText}>{tab.tag}</Text>
@@ -77,7 +77,7 @@ export default function BottomNavBar({ activeTab, onSelectTab, conversationCount
               {tab.label}
             </Text>
 
-            {/* Chỉ báo thanh tab đang kích hoạt */}
+            {/* Active tab bottom indicator */}
             {isActive && <View style={[styles.activeIndicator, { backgroundColor: theme.tiktokRed }]} />}
           </TouchableOpacity>
         );

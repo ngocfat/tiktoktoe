@@ -40,7 +40,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
   const [devLogs, setDevLogs] = useState(debugLogger.getLogs());
   const [showLogsCard, setShowLogsCard] = useState(true);
 
-  // Lắng nghe trạng thái Dev Mode và Logs realtime
+  // Listen to Dev Mode state and realtime logs
   useEffect(() => {
     const unsub = debugLogger.subscribe((enabled, logs) => {
       setIsDevMode(enabled);
@@ -49,7 +49,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     return () => unsub();
   }, []);
 
-  // Lắng nghe tiến trình tải từ Native Module theo thời gian thực (0% - 100%)
+  // Listen to download progress from Native Module in real-time (0% - 100%)
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('onDownloadProgress', (data) => {
       if (data.status === 'completed') {
@@ -83,7 +83,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     }
   };
 
-  // Dán nhanh link từ Clipboard
+  // Quick paste link from Clipboard
   const handlePasteClipboard = async () => {
     try {
       const text = await nativeBackgroundService.getClipboardText();
@@ -98,14 +98,14 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     }
   };
 
-  // Xóa trắng ô nhập
+  // Clear input field
   const handleClear = () => {
     setInputUrl('');
     setMediaData(null);
     setStatusMessage('');
   };
 
-  // Lấy dữ liệu video từ link
+  // Fetch video metadata from link
   const handleExtract = async () => {
     if (!inputUrl.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập hoặc dán link TikTok cần tải!');
@@ -129,7 +129,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     }
   };
 
-  // Tải Video HD không watermark
+  // Download HD video without watermark
   const handleDownloadVideo = async (isHd = true) => {
     if (!mediaData) return;
     setDownloadingVideo(true);
@@ -145,7 +145,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     }
   };
 
-  // Tải Nhạc nền MP3
+  // Download MP3 audio track
   const handleDownloadAudio = async () => {
     if (!mediaData || !mediaData.audioUrl) {
       showToast('Video này không có đường dẫn âm thanh tách riêng.');
@@ -164,7 +164,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     }
   };
 
-  // Sao chép logs ra bộ nhớ tạm
+  // Copy logs to clipboard
   const handleCopyLogs = async () => {
     if (devLogs.length === 0) {
       showToast('Chưa có log nào để sao chép.');
@@ -182,7 +182,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
     showToast('Đã sao chép toàn bộ nhật ký Debug!');
   };
 
-  // Xóa log
+  // Clear logs
   const handleClearLogs = () => {
     debugLogger.clearLogs();
     showToast('Đã làm sạch nhật ký.');
@@ -251,7 +251,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
       </View>
 
       <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 50 }} keyboardShouldPersistTaps="handled">
-        {/* Khung Nhật Ký Debug API (Dev Mode Console) */}
+        {/* Debug API Log Terminal (Dev Mode Console) */}
         {isDevMode && (
           <View style={[styles.debugConsoleCard, { backgroundColor: isDarkMode ? '#0F172A' : '#1E293B' }]}>
             <TouchableOpacity
@@ -343,7 +343,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
           </View>
         )}
 
-        {/* Hộp nhập link */}
+        {/* Link input box */}
         <View style={[styles.inputCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
             Dán đường link TikTok vào đây:
@@ -366,7 +366,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
             )}
           </View>
 
-          {/* Hàng nút công cụ: Dán từ clipboard & Lấy video */}
+          {/* Tool buttons: Paste clipboard & Fetch video */}
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.btnPaste, { backgroundColor: theme.surface }]}
@@ -399,10 +399,10 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
           ) : null}
         </View>
 
-        {/* Khung Kết Quả Xem Trước (Preview Card) */}
+        {/* Preview card */}
         {mediaData && (
           <View style={[styles.resultCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            {/* Tác giả & Tag Engine */}
+            {/* Author & Engine tag */}
             <View style={styles.authorHeader}>
               <View style={styles.authorLeft}>
                 {mediaData?.author?.avatar ? (
@@ -430,7 +430,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
               ) : null}
             </View>
 
-            {/* Thumbnail Video & Thời lượng */}
+            {/* Video thumbnail & duration */}
             <View style={styles.mediaPreviewWrapper}>
               {mediaData?.cover ? (
                 <Image source={{ uri: mediaData.cover }} style={styles.mediaCover} resizeMode="cover" />
@@ -453,12 +453,12 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
               </View>
             </View>
 
-            {/* Tiêu đề video */}
+            {/* Video title */}
             <Text style={[styles.videoTitle, { color: theme.textPrimary }]} numberOfLines={3}>
               {mediaData?.title || 'Không có tiêu đề'}
             </Text>
 
-            {/* Thống kê (Likes, Views, Comments, Shares) */}
+            {/* Statistics (Likes, Views, Comments, Shares) */}
             <View style={[styles.statsRow, { backgroundColor: theme.surface }]}>
               <View style={styles.statItem}>
                 <Ionicons name="eye-outline" size={14} color={theme.textSecondary} />
@@ -478,7 +478,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
               </View>
             </View>
 
-            {/* Thanh Tiến Trình Tải Xuống Trực Tiếp */}
+            {/* Real-time download progress bar */}
             {downloadProgress && (
               <View style={[styles.progressCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <View style={styles.progressHeader}>
@@ -520,9 +520,9 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
               </View>
             )}
 
-            {/* Các nút bấm tải xuống */}
+            {/* Download action buttons */}
             <View style={styles.downloadButtonsGroup}>
-              {/* Nút Tải Video Không Logo */}
+              {/* Download video without watermark button */}
               <TouchableOpacity
                 style={[styles.btnDownloadPrimary, { backgroundColor: theme.tiktokRed }]}
                 onPress={() => handleDownloadVideo(true)}
@@ -540,7 +540,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
                 </View>
               </TouchableOpacity>
 
-              {/* Nút Tải Âm Thanh MP3 */}
+              {/* Download MP3 audio button */}
               {mediaData?.audioUrl ? (
                 <TouchableOpacity
                   style={[styles.btnDownloadSecondary, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -567,7 +567,7 @@ export default function VideoDownloaderScreen({ onBack, onOpenSettings }) {
           </View>
         )}
 
-        {/* Mẹo sử dụng */}
+        {/* Tips card */}
         <View style={[styles.tipsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.tipsHeader}>
             <Ionicons name="bulb-outline" size={18} color="#F59E0B" style={{ marginRight: 6 }} />

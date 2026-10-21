@@ -1,7 +1,7 @@
 /**
- * Thuần JavaScript Protobuf Encoder & Decoder
- * Chuyển giao từ logic python (encode_payload.py & blackboxprotobuf)
- * Tương thích 100% với React Native và ByteDance IMSDK
+ * Pure JavaScript Protobuf Encoder & Decoder
+ * Ported from Python reverse-engineering prototypes (encode_payload.py & blackboxprotobuf)
+ * 100% compatible with React Native and ByteDance IMSDK wire protocol
  */
 
 export function encodeVarint(val) {
@@ -61,7 +61,7 @@ export function concatArrays(arrays) {
 }
 
 /**
- * Mã hóa dictionary lồng nhau thành Protobuf binary bytes
+ * Encodes nested object dictionaries into raw Protobuf binary bytes
  */
 export function encodeObj(obj) {
   const chunks = [];
@@ -96,9 +96,8 @@ export function encodeObj(obj) {
 }
 
 /**
- * Kiểm tra xem chuỗi bytes có phải là văn bản UTF-8 in được (Printable String) hay không.
- * Nếu là văn bản (như Conversation ID "0:1:7074...", JSON, tên, số), giữ nguyên dạng String!
- * Tránh lỗi nhận nhầm ký tự ASCII ':' (0x3A = field 7) thành nested Protobuf message.
+ * Checks if byte sequence represents printable UTF-8 text.
+ * Prevents misinterpreting ASCII delimiters (e.g. ':' 0x3A = field 7) as nested messages.
  */
 function isPrintableText(bytes) {
   if (bytes.length === 0) return true;
@@ -151,11 +150,11 @@ export function decodeProtobuf(buffer) {
       pos += len;
 
       if (isPrintableText(subBytes)) {
-        // Là chuỗi text UTF-8 hợp lệ (VD: Conversation ID, text JSON)
+        // Valid UTF-8 printable string (e.g., Conversation ID, JSON text)
         const str = new TextDecoder('utf-8').decode(subBytes);
         addOrAppend(result, String(fieldNum), str);
       } else {
-        // Thử giải mã nested message Protobuf
+        // Attempt to decode nested Protobuf message
         let parsedSub = null;
         try {
           if (subBytes.length > 0) {

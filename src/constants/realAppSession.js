@@ -1,6 +1,6 @@
 /**
- * Session trích xuất trực tiếp từ App TikTok thật (com.ss.android.ugc.trill)
- * Nguồn: /data/data/com.ss.android.ugc.trill/shared_prefs/ttnetCookieStore.xml
+ * Session extracted directly from native TikTok Android App (com.ss.android.ugc.trill).
+ * Source: /data/data/com.ss.android.ugc.trill/shared_prefs/ttnetCookieStore.xml
  */
 export const REAL_APP_SESSION = {
   uid: "7074906265289769986",

@@ -1,6 +1,6 @@
 /**
- * Service giao tiếp với TikTok IMSDK và Web Social API
- * Tích hợp toàn bộ API đã reverse engineered từ Python
+ * TikTok IMSDK and Web Social API communication service
+ * Full reverse-engineered protocol ported from Python prototypes
  */
 import { encodeObj, decodeProtobuf } from '../utils/protobuf.js';
 import { appendXBogusToUrl, generateXBogus } from '../utils/signXbogus.js';
@@ -8,7 +8,7 @@ import { debugLogger } from './debugLoggerService.js';
 
 export { generateXBogus, appendXBogusToUrl };
 
-// Helper tạo UUID ngẫu nhiên v4
+// Random UUID v4 generator
 export function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0;
@@ -17,7 +17,7 @@ export function generateUUID() {
   });
 }
 
-// Helper sinh ID client 64-bit ngẫu nhiên
+// Random 64-bit client ID generator
 export function generateClientId() {
   const min = 7562600000000000000n;
   const max = 7562699999999999999n;
@@ -27,7 +27,7 @@ export function generateClientId() {
 }
 
 /**
- * 1. Lấy thông tin Profile (Avatar, Nickname, Handle) từ Social Spotlight API
+ * 1. Fetches profile metadata (Avatar, Nickname, Handle) from Social Spotlight API
  */
 export async function fetchUserProfiles(cookieStr) {
   const profileMap = {};
@@ -77,22 +77,22 @@ export async function fetchUserProfiles(cookieStr) {
       if (!maxTime || followings.length === 0) break;
     }
   } catch (err) {
-    console.warn('Lỗi gọi API Spotlight profiles:', err);
+    console.warn('Error fetching Spotlight profiles:', err);
   }
 
   return profileMap;
 }
 
 /**
- * 1.1 Lấy thông tin Profile của các user (kể cả người lạ / chưa kết bạn)
- * qua API IM Profile chính thức của TikTok:
+ * 1.1 Fetches profile metadata for users (including unlinked/strangers)
+ * via official TikTok IM Profile endpoint:
  * GET https://www.tiktok.com/tiktok/v1/im/user/profile/?aid=1988&user_ids=["uid1", "uid2"]
  */
 export async function fetchMissingUserProfiles(cookieStr, uids) {
   if (!uids || uids.length === 0) return {};
 
   const profileMap = {};
-  // Chia thành từng nhóm tối đa 20 UIDs mỗi request
+  // Chunk into groups of at most 20 UIDs per request
   const chunkSize = 20;
   for (let i = 0; i < uids.length; i += chunkSize) {
     const chunk = uids.slice(i, i + chunkSize);
@@ -142,7 +142,7 @@ export async function fetchMissingUserProfiles(cookieStr, uids) {
         };
       }
     } catch (err) {
-      console.warn('Lỗi gọi API /tiktok/v1/im/user/profile/:', err);
+      console.warn('Error fetching /tiktok/v1/im/user/profile/:', err);
     }
   }
 
@@ -150,7 +150,7 @@ export async function fetchMissingUserProfiles(cookieStr, uids) {
 }
 
 /**
- * Trích xuất UID của tài khoản hiện tại từ Cookies
+ * Extracts UID of currently authenticated account from Cookies
  */
 export function getMyUidFromCookie(cookieStr) {
   if (!cookieStr) return '';
@@ -164,13 +164,13 @@ export function getMyUidFromCookie(cookieStr) {
 }
 
 /**
- * Lấy Profile đầy đủ của tài khoản đang đăng nhập hiện tại
- * Sử dụng API chính thức /passport/web/account/info/ kết hợp /tiktok/v1/im/user/profile/
+ * Fetches complete profile for currently authenticated account
+ * Combines /passport/web/account/info/ and /tiktok/v1/im/user/profile/
  */
 export async function fetchCurrentAccountProfile(cookieStr) {
   if (!cookieStr) return null;
 
-  // 1. Thử gọi API Passport chính thức của TikTok Web: /passport/web/account/info/
+  // 1. Attempt official TikTok Web Passport endpoint: /passport/web/account/info/
   try {
     const passportRes = await fetch('https://www.tiktok.com/passport/web/account/info/?aid=1988', {
       headers: {
@@ -186,7 +186,7 @@ export async function fetchCurrentAccountProfile(cookieStr) {
         const u = data.data || {};
         const uidStr = String(u.user_id_str || u.user_id || '');
         if (uidStr) {
-          // Lấy profile TikTok thực tế (nickname, handle, avatar của TikTok chứ KHÔNG dùng info tài khoản Google liên kết)
+          // Fetch canonical TikTok profile (nickname, handle, avatar)
           try {
             const imProfiles = await fetchMissingUserProfiles(cookieStr, [uidStr]);
             const imProf = imProfiles[uidStr];
@@ -201,10 +201,10 @@ export async function fetchCurrentAccountProfile(cookieStr) {
               };
             }
           } catch (imErr) {
-            console.warn('Lỗi lấy TikTok IM profile:', imErr);
+            console.warn('Error fetching TikTok IM profile:', imErr);
           }
 
-          // Fallback nếu không gọi được IM profile
+          // Fallback if IM profile fetch fails
           return {
             uid: uidStr,
             nickname: u.username ? `@${u.username}` : `User ${uidStr}`,
@@ -219,10 +219,10 @@ export async function fetchCurrentAccountProfile(cookieStr) {
       }
     }
   } catch (err) {
-    console.warn('Lỗi gọi /passport/web/account/info/:', err);
+    console.warn('Error fetching /passport/web/account/info/:', err);
   }
 
-  // 2. Fallback: Nếu không gọi được passport, trích xuất UID từ cookie và gọi /tiktok/v1/im/user/profile/
+  // 2. Fallback: extract UID from cookies and query /tiktok/v1/im/user/profile/
   try {
     const myUid = getMyUidFromCookie(cookieStr);
     if (myUid) {
@@ -248,12 +248,12 @@ export async function fetchCurrentAccountProfile(cookieStr) {
       };
     }
   } catch (err2) {
-    console.warn('Lỗi fallback lấy profile từ UID:', err2);
+    console.warn('Fallback profile fetch error from UID:', err2);
   }
 
   return {
     uid: '',
-    nickname: 'Chưa xác thực',
+    nickname: 'Unverified',
     unique_id: '',
     avatar: '',
     signature: '',
@@ -262,22 +262,22 @@ export async function fetchCurrentAccountProfile(cookieStr) {
 }
 
 /**
- * 2. Lấy toàn bộ danh sách hội thoại từ IMSDK (/v2/message/get_by_user_init)
+ * 2. Fetches complete conversation list from IMSDK (/v2/message/get_by_user_init)
  */
 export async function fetchConversationList(cookieStr, deviceId = '7648200104730822164') {
   const url = 'https://im-api-sg.tiktok.com/v2/message/get_by_user_init';
 
-  // Trích xuất UID của mình từ cookie nếu có
+  // Extract account UID from cookie if present
   let myUid = '';
   const match = cookieStr.match(/multi_sids=([0-9]+)/);
   if (match) {
     myUid = match[1];
   }
 
-  // Bước 1: Kéo danh bạ profiles từ Spotlight trước
+  // Step 1: Pre-fetch profiles from Spotlight
   const profileMap = await fetchUserProfiles(cookieStr);
 
-  // Helper gửi request Protobuf CMD 203 theo category và cursor
+  // Helper sending Protobuf CMD 203 request by category and pagination cursor
   const fetchByUserInitPage = async (category, cursor) => {
     const payloadDict = {
       '1': 203,
@@ -285,7 +285,7 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
       '3': '1.8.2',
       '4': '',
       '5': 3,
-      '6': category, // 0: Hộp thư chính (1-1), 1: Nhóm chat (Group chats)!
+      '6': category, // 0: Direct 1-to-1 inbox, 1: Group chats
       '7': '1132b10:master',
       '8': {
         '203': {
@@ -363,35 +363,33 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
   const allMessages = [];
   const convMap = new Map();
 
-  // TikTok Web gửi nhiều get_by_user_init với các Category và Cursor khác nhau:
-  // • Category 0: Hộp thư chính 1-1 (với cursor phân trang 0, 10, 20...)
-  // • Category 1: Hộp thư nhóm (Group chats)!
+  // Categories to query: 0 = 1-to-1 chats, 1 = Group chats
   const categoriesToFetch = [0, 1];
 
   for (const cat of categoriesToFetch) {
     let cursor = 0;
-    const maxPages = cat === 0 ? 4 : 2; // tối đa 4 trang cho 1-1, 2 trang cho nhóm
+    const maxPages = cat === 0 ? 4 : 2;
 
     for (let page = 0; page < maxPages; page++) {
       try {
         const decoded = await fetchByUserInitPage(cat, cursor);
         if (!decoded) break;
 
-        // Lưu myUid từ Tag 15 nếu có
+        // Record myUid from Tag 15 if present
         if (!myUid && decoded?.['15']) {
           myUid = String(decoded['15']);
         }
 
         const body203 = decoded?.['6']?.['203'] || {};
 
-        // Gom tin nhắn gần đây
+        // Collect recent messages
         ['1', '1-1'].forEach((k) => {
           const item = body203[k];
           if (Array.isArray(item)) allMessages.push(...item);
           else if (item && typeof item === 'object') allMessages.push(item);
         });
 
-        // Gom hội thoại
+        // Collect conversations
         let pageConvList = body203['2'] || [];
         if (!Array.isArray(pageConvList)) pageConvList = [pageConvList];
 
@@ -428,8 +426,7 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
 
   const convList = Array.from(convMap.values());
 
-  // 2. Fallback nếu Server không trả Tag 15: Phân tích tần suất UID xuất hiện trong mọi hội thoại
-  // UID nào xuất hiện trong hầu hết các cuộc hội thoại chính là myUid!
+  // Fallback: frequency analysis to deduce myUid if Tag 15 is omitted by server
   if (!myUid && convList.length > 0) {
     const uidFreq = {};
     for (const conv of convList) {
@@ -449,11 +446,11 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
     }
   }
 
-  // Bước 1.5: Gom tất cả các UID chưa có trong profileMap (người lạ / chưa kết bạn / chưa follow)
+  // Collect unlinked user UIDs not in initial Spotlight profileMap
   const missingUids = new Set();
   for (const conv of convList) {
     const convType = Number(conv?.['3'] || 1);
-    if (convType === 2) continue; // Bỏ qua nhóm
+    if (convType === 2) continue; // Skip groups
 
     const pList = conv?.['6']?.['1'] || [];
     const pArr = Array.isArray(pList) ? pList : [pList];
@@ -481,13 +478,13 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
     }
   }
 
-  // Tra cứu profile cho các user còn thiếu bằng API /tiktok/v1/im/user/profile/
+  // Resolve missing profiles via /tiktok/v1/im/user/profile/
   if (missingUids.size > 0) {
     try {
       const strangerProfiles = await fetchMissingUserProfiles(cookieStr, Array.from(missingUids));
       Object.assign(profileMap, strangerProfiles);
     } catch (e) {
-      console.warn('Lỗi lấy profile user lạ:', e);
+      console.warn('Error fetching missing user profiles:', e);
     }
   }
 
@@ -500,7 +497,6 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
     if (!cid || cid.startsWith('[object') || seenCids.has(cid)) continue;
     seenCids.add(cid);
 
-    // Lấy participants
     const participants = [];
     const pList = conv?.['6']?.['1'] || [];
     const pArr = Array.isArray(pList) ? pList : [pList];
@@ -511,7 +507,6 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
       }
     }
 
-    // Nếu thiếu trong tag 6.1 nhưng cid có dạng 0:1:uid1:uid2
     if (cid.startsWith('0:1:')) {
       const parts = cid.split(':');
       if (parts.length >= 4) {
@@ -541,12 +536,11 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
       const groupIcon = typeof conv?.['50']?.['7'] === 'string' ? conv['50']['7'] : '';
       const memberCount = Number(conv?.['7'] || participants.length || 0);
 
-      nickname = groupName || `Nhóm Chat (${memberCount} thành viên)`;
+      nickname = groupName || `Group Chat (${memberCount} members)`;
       avatar = groupIcon;
-      uniqueId = `${memberCount} thành viên`;
+      uniqueId = `${memberCount} members`;
       targetUid = cid;
     } else {
-      // Xác định đối phương (UID KHÁC với myUid)
       if (myUid) {
         targetUid = participants.find((p) => p !== myUid) || '';
       }
@@ -554,12 +548,11 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
         targetUid = participants.find((p) => p !== myUid) || participants[0] || '';
       }
 
-      // Lấy Profile từ Spotlight
       profile = profileMap[targetUid] || {};
       nickname = profile.nickname;
       if (!nickname) {
         if (targetUid === myUid && myUid) {
-          nickname = 'Tôi (Tin Nhắn Đã Lưu)';
+          nickname = 'Saved Messages';
         } else {
           nickname = `User ${targetUid}`;
         }
@@ -568,9 +561,8 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
       avatar = profile.avatar || '';
     }
 
-    // Lấy tin nhắn cuối cùng tương ứng với hội thoại này
     const lastMsg = latestMsgByConv[cid];
-    let lastText = 'Chưa có tin nhắn';
+    let lastText = 'No messages yet';
     let lastSenderUid = '';
     let lastTime = 0;
 
@@ -583,7 +575,7 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
           const jsonContent = JSON.parse(rawContent);
           if (jsonContent.text) lastText = jsonContent.text;
           else if (jsonContent.content_title) lastText = `[Video] ${jsonContent.content_title}`;
-          else if (jsonContent.aweType) lastText = `[Loại tin: ${jsonContent.aweType}]`;
+          else if (jsonContent.aweType) lastText = `[Type: ${jsonContent.aweType}]`;
         } catch (e) {
           lastText = String(rawContent);
         }
@@ -621,7 +613,7 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
     });
   }
 
-  // Sắp xếp theo thời gian mới nhất lên đầu
+  // Sort by latest message timestamp descending
   formattedConversations.sort((a, b) => {
     const timeA = a.lastMessageTime || a.updatedTime || 0;
     const timeB = b.lastMessageTime || b.updatedTime || 0;
@@ -632,7 +624,7 @@ export async function fetchConversationList(cookieStr, deviceId = '7648200104730
 }
 
 /**
- * 3. Gửi tin nhắn qua Web IMSDK (/v1/message/send)
+ * 3. Sends message via Web IMSDK (/v1/message/send)
  */
 export async function sendTiktokMessage(
   cookieStr,
@@ -645,19 +637,19 @@ export async function sendTiktokMessage(
   const userAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-  // Lấy tt_csrf_token từ chuỗi cookie nếu có
+  // Extract tt_csrf_token from cookie string
   const csrfMatch = cookieStr.match(/tt_csrf_token=([^; ]+)/);
   const csrfToken = csrfMatch ? csrfMatch[1] : '';
 
-  // Ký chữ ký động X-Bogus trực tiếp trong React Native
+  // Sign dynamic X-Bogus signature
   const baseQueryUrl = 'https://im-api-sg.tiktok.com/v1/message/send?aid=1988&device_platform=web_pc';
   const signedUrl = appendXBogusToUrl(baseQueryUrl, userAgent);
 
   const newUuid = generateUUID();
-  debugLogger.addLog('TIKTOK_API', 'info', `Chuẩn bị gửi tin: "${text.slice(0, 30)}..." tới CID: ${conversationId}`);
+  debugLogger.addLog('TIKTOK_API', 'info', `Preparing message: "${text.slice(0, 30)}..." to CID: ${conversationId}`);
 
-  // Xác định conversation_short_id (Tag 3 trong block 100)
-  // Với Group chat (convType = 2), conversation_short_id BẮT BUỘC phải là 64-bit BigInt của group ID
+  // Resolve conversation_short_id (Tag 3 in block 100)
+  // For group chats (convType = 2), conversation_short_id must be 64-bit BigInt of group ID
   let shortIdNum;
   if (conversationShortId && /^\d+$/.test(String(conversationShortId))) {
     shortIdNum = BigInt(String(conversationShortId));
@@ -762,7 +754,7 @@ export async function sendTiktokMessage(
   });
 
   if (!res.ok) {
-    debugLogger.addLog('TIKTOK_API', 'error', `Gửi tin thất bại: HTTP Error ${res.status}`);
+    debugLogger.addLog('TIKTOK_API', 'error', `Message send failed: HTTP Error ${res.status}`);
     throw new Error(`HTTP Error: ${res.status}`);
   }
 
@@ -771,13 +763,13 @@ export async function sendTiktokMessage(
   const statusCode = decoded?.['3'];
   const statusMsg = decoded?.['4'];
   const serverMsgId = decoded?.['6']?.['100']?.['1'];
-  const msgStatus = Number(decoded?.['6']?.['100']?.['5'] ?? -1); // Tag 5: 0 = Thành công, 2 = Bị chặn/Từ chối
+  const msgStatus = Number(decoded?.['6']?.['100']?.['5'] ?? -1); // Tag 5: 0 = Success, 2 = Filtered/Blocked
   const checkTips = decoded?.['6']?.['100']?.['6'];
 
   debugLogger.addLog(
     'TIKTOK_API',
     statusCode === 0 && msgStatus === 0 ? 'success' : 'warn',
-    `Kết quả phản hồi IMSDK: Code=${statusCode}, MsgStatus=${msgStatus}, ServerMsgId=${serverMsgId || 'None'}`
+    `IMSDK response: Code=${statusCode}, MsgStatus=${msgStatus}, ServerMsgId=${serverMsgId || 'None'}`
   );
 
   let tipMsg = '';
@@ -789,19 +781,19 @@ export async function sendTiktokMessage(
       } else if (tipJson.status_msg?.msg_content?.tips) {
         tipMsg = tipJson.status_msg.msg_content.tips;
       } else if (tipJson.decision_detail === 'ban') {
-        tipMsg = 'Tài khoản đang bị TikTok áp lệnh cấm gửi tin (sending_ban)';
+        tipMsg = 'Account sending ban imposed by TikTok (sending_ban)';
       }
     } catch (e) {
       if (String(checkTips).includes('sending_ban') || String(checkTips).includes('ban')) {
-        tipMsg = 'Bị TikTok chặn gửi tin (sending_ban - Vi phạm nguyên tắc cộng đồng)';
+        tipMsg = 'Message blocked by TikTok (sending_ban / community guidelines)';
       }
     }
   }
 
-  // Một tin nhắn CHỈ thực sự thành công khi:
-  // 1. Mã code cấp cao là 0
-  // 2. Server Message ID được cấp
-  // 3. msgStatus (Tag 5 trong block 100) BẮT BUỘC = 0 (nếu bằng 2 là bị Safety Filter chặn)
+  // A message is successful only when:
+  // 1. High level status code is 0
+  // 2. Server Message ID is allocated
+  // 3. msgStatus (Tag 5 in block 100) equals 0 (2 indicates blocked by Safety Filter)
   const isSuccess = (statusCode === 0 || statusCode === 0n || statusCode === '0') && !!serverMsgId && msgStatus === 0;
 
   let finalStatusText = 'OK';
@@ -809,11 +801,11 @@ export async function sendTiktokMessage(
     if (tipMsg) {
       finalStatusText = tipMsg;
     } else if (msgStatus === 2) {
-      finalStatusText = 'Bị TikTok chặn (sending_ban / filter)';
+      finalStatusText = 'Blocked by TikTok (sending_ban / filter)';
     } else if (statusMsg) {
       finalStatusText = String(statusMsg);
     } else {
-      finalStatusText = `Mã lỗi: ${statusCode}`;
+      finalStatusText = `Error code: ${statusCode}`;
     }
   }
 

@@ -31,18 +31,18 @@
       </intent-filter>
     </activity>
 
-    <!-- TikTokToe Foreground Service: giữ app chạy ngầm không bị hệ điều hành tắt -->
+    <!-- TikTokToe Foreground Service: maintains persistent background process -->
     <service
         android:name=".TikTokForegroundService"
         android:foregroundServiceType="dataSync"
         android:exported="false" />
 
-    <!-- Headless JS Task Service: chạy tác vụ JavaScript khi app đã đóng hoàn toàn -->
+    <!-- Headless JS Task Service: executes background JavaScript tasks when app is terminated -->
     <service
         android:name=".StreakHeadlessService"
         android:exported="false" />
 
-    <!-- Alarm Receiver: nhận sự kiện hẹn giờ chính xác từ AlarmManager -->
+    <!-- Alarm Receiver: handles exact alarm triggers from AlarmManager -->
     <receiver
         android:name=".StreakAlarmReceiver"
         android:exported="false">
@@ -51,7 +51,7 @@
         </intent-filter>
     </receiver>
 
-    <!-- Boot Receiver: khôi phục và đặt lại lịch hẹn ngay khi khởi động lại máy -->
+    <!-- Boot Receiver: restores scheduled alarms after device reboot -->
     <receiver
         android:name=".BootReceiver"
         android:enabled="true"

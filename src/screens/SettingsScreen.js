@@ -40,20 +40,20 @@ const CACHED_PROFILE_KEY = 'TIKTOK_CACHED_MY_PROFILE_V2';
 export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
   const { theme, isDarkMode, themeMode, setThemeMode, toggleTheme } = useTheme();
 
-  // Điều hướng sub-view: 'MAIN' | 'GEMINI' | 'ACCOUNT_DETAIL'
+  // Navigation sub-view: 'MAIN' | 'GEMINI' | 'ACCOUNT_DETAIL'
   const [currentView, setCurrentView] = useState('MAIN');
 
-  // Thông tin profile tài khoản hiện tại (nạp ngay từ cache nếu có)
+  // Current account profile (loaded from cache if available)
   const [profile, setProfile] = useState(cachedCurrentProfile);
   const [loadingProfile, setLoadingProfile] = useState(!cachedCurrentProfile);
 
-  // Trạng thái dịch vụ chạy ngầm & Tối ưu pin
+  // Background service & battery optimization state
   const [bgServiceEnabled, setBgServiceEnabled] = useState(scheduleWorker.isBgServiceEnabled);
   const [isIgnoringBattery, setIsIgnoringBattery] = useState(true);
   const [unlockedMode, setUnlockedMode] = useState(false);
   const [showDangerModal, setShowDangerModal] = useState(false);
 
-  // Trạng thái cấu hình Gemini AI
+  // Gemini AI configuration state
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState('FUNNY');
@@ -71,7 +71,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
   const [devTapCount, setDevTapCount] = useState(0);
   const [lastTapTime, setLastTapTime] = useState(0);
 
-  // Lắng nghe trạng thái Dev Mode và Logs realtime
+  // Listen to Dev Mode state and realtime logs
   useEffect(() => {
     const unsub = debugLogger.subscribe((enabled, logs) => {
       setIsDevMode(enabled);
@@ -80,7 +80,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     return () => unsub();
   }, []);
 
-  // Xử lý Easter Egg: Nhấn nhanh liên tục 10 lần vào chữ "Cài đặt" để kích hoạt Dev Mode
+  // Easter Egg: Tap rapidly 10 times on "Settings" to toggle Dev Mode
   const handleHeaderTitleTap = async () => {
     const now = Date.now();
     let count = 1;
@@ -137,12 +137,12 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     }
   };
 
-  // Tải thông tin tài khoản và cấu hình đã lưu
+  // Load account profile and saved configurations
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
-      // 0. Nạp profile từ bộ nhớ đệm nếu chưa có trong RAM
+      // 0. Load profile from cache if not present in memory
       if (!cachedCurrentProfile) {
         try {
           const stored = await AsyncStorage.getItem(CACHED_PROFILE_KEY);
@@ -154,7 +154,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         } catch (_) {}
       }
 
-      // 1. Tải cấu hình Gemini
+      // 1. Load Gemini configurations
       const savedKey = await getGeminiApiKey();
       const savedStyle = await getGeminiStreakStyle();
       const savedModel = await getActiveGeminiModel();
@@ -164,7 +164,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         setActiveModel(savedModel);
       }
 
-      // 2. Tải Profile của tài khoản hiện tại từ API chính thức
+      // 2. Fetch current account profile from official API
       if (cookieStr) {
         if (!cachedCurrentProfile) setLoadingProfile(true);
         try {
@@ -183,13 +183,13 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         if (isMounted) setLoadingProfile(false);
       }
 
-      // 3. Kiểm tra trạng thái chạy ngầm và tối ưu pin
+      // 3. Check background status and battery optimization
       nativeBackgroundService.isIgnoringBatteryOptimizations().then((val) => {
         if (isMounted) setIsIgnoringBattery(val);
       });
       if (isMounted) setBgServiceEnabled(scheduleWorker.isBgServiceEnabled);
 
-      // 4. Kiểm tra chế độ mở khóa tốc độ
+      // 4. Check unlocked speed mode
       AsyncStorage.getItem('TIKTOKTOE_UNLOCKED_SPEED_MODE').then((val) => {
         if (isMounted) setUnlockedMode(val === 'true');
       });
@@ -202,13 +202,13 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     };
   }, [cookieStr]);
 
-  // Bật/tắt dịch vụ chạy ngầm
+  // Toggle background service
   const handleToggleBgService = async (val) => {
     setBgServiceEnabled(val);
     await scheduleWorker.setBackgroundServiceEnabled(val);
   };
 
-  // Mở cài đặt tối ưu hóa pin hệ thống
+  // Open system battery optimization settings
   const handleRequestBatteryOpt = async () => {
     await nativeBackgroundService.requestIgnoreBatteryOptimizations();
     setTimeout(() => {
@@ -216,7 +216,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     }, 2000);
   };
 
-  // Bật/tắt chế độ mở khóa giới hạn tốc độ (kèm modal Danger chuẩn MIUI)
+  // Toggle unlocked speed mode (with MIUI-style Danger modal)
   const handleToggleUnlockedMode = (val) => {
     if (val) {
       setShowDangerModal(true);
@@ -237,7 +237,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     setShowDangerModal(false);
   };
 
-  // Lưu API Key
+  // Save API Key
   const handleSaveKey = async () => {
     const trimmed = apiKey.trim();
     const success = await saveGeminiApiKey(trimmed);
@@ -249,7 +249,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     }
   };
 
-  // Kiểm tra kết nối API Key
+  // Test API Key connection
   const handleTestKey = async () => {
     if (!apiKey.trim()) {
       Alert.alert('Thông báo', 'Vui lòng nhập API Key trước khi kiểm tra!');
@@ -277,13 +277,13 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     }
   };
 
-  // Chọn phong cách giữ chuỗi
+  // Select streak message style
   const handleSelectStyle = async (styleKey) => {
     setSelectedStyle(styleKey);
     await saveGeminiStreakStyle(styleKey);
   };
 
-  // Thử sinh 1 câu mẫu
+  // Generate sample message
   const handleGenerateSample = async () => {
     setIsGeneratingSample(true);
     const targetName = profile?.nickname || 'bạn';
@@ -293,7 +293,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     setSampleSource({ source: res.source, model: res.model });
   };
 
-  // Xử lý xác nhận đổi tài khoản
+  // Handle switch account confirmation
   const handleSwitchAccount = () => {
     const usernameDisplay = profile?.unique_id ? `@${profile.unique_id}` : 'tài khoản hiện tại';
     Alert.alert(
@@ -314,7 +314,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     );
   };
 
-  // Đăng xuất hoàn toàn
+  // Complete logout
   const handleLogout = () => {
     Alert.alert(
       'Đăng Xuất',
@@ -334,7 +334,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
     );
   };
 
-  // Xóa bộ nhớ đệm
+  // Clear cache
   const handleClearCache = () => {
     clearConversationCache();
     Alert.alert('Bộ Nhớ Đệm', 'Đã xóa bộ nhớ đệm danh sách tin nhắn thành công.');
@@ -353,7 +353,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
   if (currentView === 'GEMINI') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        {/* Header chi tiết Gemini */}
+        {/* Gemini settings header */}
         <View style={[styles.header, { backgroundColor: theme.bg, borderBottomColor: theme.divider }]}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -369,7 +369,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         <ScrollView style={styles.contentArea} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-          {/* Card Mục Gemini AI */}
+          {/* Gemini AI card */}
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeader}>
               <View style={[styles.aiIconBadge, { backgroundColor: theme.surface }]}>
@@ -383,7 +383,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </View>
             </View>
 
-            {/* Ô Nhập Dán API Key */}
+            {/* API Key input box */}
             <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
               Gemini API Key (Google AI Studio)
             </Text>
@@ -409,7 +409,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </TouchableOpacity>
             </View>
 
-            {/* Hàng nút bấm: Lưu & Test Key */}
+            {/* Action buttons: Save & Test Key */}
             <View style={styles.actionBtnRow}>
               <TouchableOpacity
                 style={[styles.saveBtn, { backgroundColor: theme.tiktokRed }]}
@@ -440,7 +440,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </TouchableOpacity>
             </View>
 
-            {/* Thông báo kết quả kiểm tra API Key */}
+            {/* API Key test result banner */}
             {testResult && (
               <View
                 style={[
@@ -473,7 +473,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </View>
             )}
 
-            {/* Hộp thông tin model đang hoạt động */}
+            {/* Active model information box */}
             {activeModel ? (
               <View
                 style={[
@@ -499,7 +499,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </View>
             ) : null}
 
-            {/* Hướng dẫn lấy API Key */}
+            {/* API Key instructions */}
             <View style={[styles.tipBox, { backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC' }]}>
               <Ionicons name="information-circle-outline" size={16} color={theme.textPrimary} style={{ marginRight: 6 }} />
               <Text style={[styles.tipText, { color: theme.textSecondary }]}>
@@ -509,7 +509,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             </View>
           </View>
 
-          {/* Card Lựa Chọn Phong Cách Câu Nói / Quote */}
+          {/* Streak quote style selector card */}
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <Text style={[styles.cardTitle, { color: theme.textPrimary, marginBottom: 4 }]}>
               Phong Cách Câu Nói / Quote Vu Vơ
@@ -552,7 +552,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               })}
             </View>
 
-            {/* Nút Thử Sinh Câu Mẫu Ngay */}
+            {/* Generate sample quote button */}
             <TouchableOpacity
               style={[styles.sampleBtn, { backgroundColor: theme.surface }]}
               onPress={handleGenerateSample}
@@ -571,7 +571,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               )}
             </TouchableOpacity>
 
-            {/* Khung hiển thị câu mẫu */}
+            {/* Sample quote display box */}
             {sampleMessage ? (
               <View style={[styles.sampleResultBox, { backgroundColor: theme.surface }]}>
                 <View style={styles.sampleResultHeader}>
@@ -666,7 +666,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             ) : null}
           </View>
 
-          {/* Chi tiết tài khoản */}
+          {/* Account details */}
           <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>CHI TIẾT TÀI KHOẢN</Text>
           <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
             <View style={[styles.detailRow, { borderBottomColor: theme.divider }]}>
@@ -691,7 +691,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             </View>
           </View>
 
-          {/* Nút đổi tài khoản */}
+          {/* Switch account button */}
           <TouchableOpacity
             style={[styles.switchAccountBtn, { backgroundColor: '#F59E0B' }]}
             onPress={handleSwitchAccount}
@@ -710,7 +710,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
    * ===================================================================== */
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* Header chuẩn: Cài đặt */}
+      {/* Settings header */}
       <View style={[styles.header, { backgroundColor: theme.bg, borderBottomColor: theme.divider }]}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={24} color={theme.textPrimary} />
@@ -743,7 +743,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
       </View>
 
       <ScrollView style={styles.contentArea} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* CARD PROFILE TÀI KHOẢN HIỆN TẠI (Đầu trang Settings) */}
+        {/* Current account profile card */}
         <TouchableOpacity
           style={[styles.profileCard, { backgroundColor: theme.card }]}
           onPress={() => setCurrentView('ACCOUNT_DETAIL')}
@@ -790,11 +790,11 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </TouchableOpacity>
 
         {/* ================================================================= */}
-        {/* MỤC 1: AI & TỰ ĐỘNG HÓA (CHỈ GIỮ MỤC GEMINI AI) */}
+        {/* SECTION 1: AI & AUTOMATION */}
         {/* ================================================================= */}
         <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>AI & TỰ ĐỘNG HÓA</Text>
         <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
-          {/* Dòng Google Gemini AI */}
+          {/* Google Gemini AI row */}
           <TouchableOpacity
             style={styles.settingsRow}
             onPress={() => setCurrentView('GEMINI')}
@@ -825,11 +825,11 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         {/* ================================================================= */}
-        {/* MỤC 2: TIẾN TRÌNH NỀN & TỰ ĐỘNG GIỮ CHUỖI (BACKGROUND SERVICE) */}
+        {/* SECTION 2: BACKGROUND SERVICES & STREAKS */}
         {/* ================================================================= */}
         <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>TIẾN TRÌNH NỀN & TỰ ĐỘNG GIỮ CHUỖI</Text>
         <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
-          {/* Switch Bật/Tắt Dịch Vụ Nền Tự Động */}
+          {/* Background service toggle switch */}
           <View style={[styles.settingsRow, { borderBottomColor: theme.divider }]}>
             <View style={[styles.rowIconBox, { backgroundColor: theme.surface }]}>
               <Ionicons name="shield-checkmark-outline" size={18} color="#10B981" />
@@ -855,7 +855,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             />
           </View>
 
-          {/* Quyền miễn trừ Tối ưu Pin */}
+          {/* Battery optimization exemption */}
           <TouchableOpacity
             style={styles.settingsRow}
             onPress={handleRequestBatteryOpt}
@@ -886,7 +886,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         {/* ================================================================= */}
-        {/* MỤC: AN TOÀN & GIỚI HẠN TỐC ĐỘ */}
+        {/* SECTION: SAFETY & SPEED LIMITS */}
         {/* ================================================================= */}
         <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>AN TOÀN & GIỚI HẠN TỐC ĐỘ</Text>
         <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
@@ -952,11 +952,11 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         {/* ================================================================= */}
-        {/* MỤC 3: GIAO DIỆN & HỆ THỐNG */}
+        {/* SECTION 3: THEME & SYSTEM */}
         {/* ================================================================= */}
         <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>GIAO DIỆN & HỆ THỐNG</Text>
         <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
-          {/* Tùy chọn giao diện: Theo hệ thống / Tối / Sáng */}
+          {/* Theme options: System / Dark / Light */}
           <View style={[styles.settingsRow, { borderBottomColor: theme.divider, flexDirection: 'column', alignItems: 'stretch' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
               <View style={[styles.rowIconBox, { backgroundColor: theme.surface }]}>
@@ -970,7 +970,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </View>
             </View>
 
-            {/* Cụm 3 nút chọn theme */}
+            {/* Theme selector buttons */}
             <View style={styles.themeSelectorRow}>
               {[
                 { key: 'SYSTEM', label: 'Hệ thống', icon: 'phone-portrait-outline', iconColor: theme.textSecondary },
@@ -1017,7 +1017,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             </View>
           </View>
 
-          {/* Xóa Cache */}
+          {/* Clear cache */}
           <TouchableOpacity
             style={styles.settingsRow}
             onPress={handleClearCache}
@@ -1037,11 +1037,11 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         {/* ================================================================= */}
-        {/* MỤC 4: TÀI KHOẢN & ĐĂNG NHẬP (DƯỚI CÙNG THEO YÊU CẦU) */}
+        {/* SECTION 4: ACCOUNT & LOGOUT */}
         {/* ================================================================= */}
         <Text style={[styles.sectionHeaderTitle, { color: theme.textMuted }]}>TÀI KHOẢN & ĐĂNG NHẬP</Text>
         <View style={[styles.settingsGroup, { backgroundColor: theme.card }]}>
-          {/* Nút Đổi sang tài khoản khác */}
+          {/* Switch account button */}
           <TouchableOpacity
             style={[styles.settingsRow, { borderBottomColor: theme.divider }]}
             onPress={handleSwitchAccount}
@@ -1059,7 +1059,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
             <Ionicons name="chevron-forward" size={18} color="#F59E0B" />
           </TouchableOpacity>
 
-          {/* Nút Đăng xuất */}
+          {/* Logout button */}
           <TouchableOpacity
             style={styles.settingsRow}
             onPress={handleLogout}
@@ -1079,7 +1079,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
 
         {/* ================================================================= */}
-        {/* MỤC 4: TÙY CHỌN NHÀ PHÁT TRIỂN (DEV MODE) */}
+        {/* SECTION: DEVELOPER OPTIONS (DEV MODE) */}
         {/* ================================================================= */}
         {isDevMode && (
           <>
@@ -1090,7 +1090,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
               </Text>
             </View>
             <View style={[styles.settingsGroup, { backgroundColor: theme.card, borderColor: '#0284C7', borderWidth: 1 }]}>
-              {/* Bật/Tắt Dev Mode */}
+              {/* Toggle Dev Mode */}
               <View style={[styles.settingsRow, { borderBottomColor: theme.divider }]}>
                 <View style={[styles.rowIconBox, { backgroundColor: 'rgba(2, 132, 199, 0.15)' }]}>
                   <Ionicons name="bug-outline" size={18} color="#0284C7" />
@@ -1112,7 +1112,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
                 />
               </View>
 
-              {/* Mở toàn bộ nhật ký hệ thống */}
+              {/* Open system logs */}
               <TouchableOpacity
                 style={[styles.settingsRow, { borderBottomColor: theme.divider }]}
                 onPress={() => setShowLogsModal(true)}
@@ -1130,7 +1130,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
                 <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
               </TouchableOpacity>
 
-              {/* Xóa toàn bộ log */}
+              {/* Clear all debug logs */}
               <TouchableOpacity
                 style={styles.settingsRow}
                 onPress={() => {
@@ -1155,7 +1155,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
           </>
         )}
 
-        {/* Footer thông tin bản quyền */}
+        {/* Version & copyright footer */}
         <View style={styles.infoFooter}>
           <Text style={[styles.infoFooterText, { color: theme.textMuted }]}>
             TikTokToe - v1.1.0 {isDevMode ? '(Dev Mode Enabled)' : ''}
@@ -1166,7 +1166,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </View>
       </ScrollView>
 
-      {/* Modal Toàn Bộ Nhật Ký Hệ Thống */}
+      {/* System logs modal */}
       <Modal
         visible={showLogsModal}
         animationType="slide"
@@ -1254,7 +1254,7 @@ export default function SettingsScreen({ cookieStr = '', onBack, onLogout }) {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal cảnh báo Danger chuẩn phong cách Xiaomi/MIUI */}
+      {/* MIUI-style Danger warning modal */}
       <DangerSecurityModal
         visible={showDangerModal}
         onConfirm={handleConfirmDangerUnlock}
@@ -1404,7 +1404,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Sub-view: Chi Tiết Tài Khoản */
+  /* Sub-view: Account Details */
   largeAvatar: {
     width: 84,
     height: 84,

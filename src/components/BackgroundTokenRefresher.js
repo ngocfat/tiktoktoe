@@ -4,8 +4,8 @@ import { WebView } from 'react-native-webview';
 
 /**
  * BackgroundTokenRefresher:
- * Chạy ngầm một WebView vô hình (1x1 px, opacity 0, nằm ngoài màn hình)
- * Tự động giữ phiên đăng nhập (heartbeat) và làm mới msToken/session token của TikTok Web định kỳ
+ * Off-screen headless WebView (1x1 px, opacity 0, positioned off-screen)
+ * Automatically maintains session heartbeat and periodically refreshes msToken and session cookies
  */
 const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
   { enabled = true, onTokenUpdated },
@@ -14,17 +14,17 @@ const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
   const webViewRef = useRef(null);
   const lastUpdateRef = useRef(0);
 
-  // Expose hàm reload để các service khác có thể chủ động kích hoạt làm mới token
+  // Expose reload method for other services to trigger on-demand token renewal
   useImperativeHandle(ref, () => ({
     forceRefreshToken: () => {
       if (webViewRef.current) {
-        console.log('[BackgroundTokenRefresher] Đang chủ động kích hoạt reload WebView ngầm để lấy token mới...');
+        console.log('[BackgroundTokenRefresher] Reloading off-screen WebView to acquire refreshed tokens...');
         webViewRef.current.reload();
       }
     },
   }));
 
-  // Script chạy ngầm bên trong TikTok Web để trích xuất cookie đã được làm mới
+  // Injected script inside TikTok Web to extract renewed session cookies
   const injectedKeepAliveScript = `
     (function() {
       function checkAndSendCookies() {
@@ -32,7 +32,7 @@ const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
           var cookies = document.cookie || '';
           var href = window.location.href;
 
-          // Nếu đang ở trang đăng nhập -> session đã bị thu hồi hoàn toàn
+          // If redirected to login page, the session is expired
           if (href.indexOf('/login') !== -1) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'SESSION_EXPIRED',
@@ -41,7 +41,7 @@ const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
             return;
           }
 
-          // Nếu có sessionid và cookie hợp lệ, gửi về cho app cập nhật
+          // If valid session cookies are found, broadcast to React Native
           if (cookies && (cookies.indexOf('sessionid=') !== -1 || cookies.indexOf('sid_tt=') !== -1)) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'TOKEN_REFRESHED',
@@ -53,10 +53,10 @@ const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
         } catch (err) {}
       }
 
-      // Gửi sau khi trang tải xong 3 giây
+      // Initial check 3 seconds after page load
       setTimeout(checkAndSendCookies, 3000);
 
-      // Tự động kiểm tra lại định kỳ mỗi 5 phút (300.000 ms)
+      // Periodic check every 5 minutes (300,000 ms)
       setInterval(checkAndSendCookies, 5 * 60 * 1000);
     })();
     true;
@@ -68,19 +68,19 @@ const BackgroundTokenRefresher = forwardRef(function BackgroundTokenRefresher(
 
       if (data.type === 'TOKEN_REFRESHED' && data.cookies) {
         const now = Date.now();
-        // Giới hạn tần suất cập nhật tối thiểu 30 giây để tránh re-render liên tục
+        // Throttle updates to at least 30 seconds apart to prevent excessive re-renders
         if (now - lastUpdateRef.current > 30000) {
           lastUpdateRef.current = now;
-          console.log('[BackgroundTokenRefresher] Đã nhận được cookies mới từ WebView ngầm!');
+          console.log('[BackgroundTokenRefresher] Refreshed cookies received from background WebView');
           if (onTokenUpdated) {
             onTokenUpdated(data.cookies);
           }
         }
       } else if (data.type === 'SESSION_EXPIRED') {
-        console.warn('[BackgroundTokenRefresher] Phiên TikTok đã hết hạn hoàn toàn, cần đăng nhập lại.');
+        console.warn('[BackgroundTokenRefresher] TikTok session expired, re-authentication required.');
       }
     } catch (e) {
-      // Bỏ qua lỗi parse JSON không mong muốn
+      // Ignore JSON parse errors
     }
   };
 

@@ -227,7 +227,7 @@ class TikTokBackgroundModule(private val reactContext: ReactApplicationContext) 
 
                 var cookieHeader = customCookie?.trim() ?: ""
 
-                // 1. Tận dụng cookie từ Android CookieManager nếu có
+                // 1. Use cookies from Android CookieManager if available
                 if (cookieHeader.isEmpty()) {
                     val cookieManager = CookieManager.getInstance()
                     val webkitCookies = cookieManager.getCookie("https://www.tiktok.com")
@@ -236,7 +236,7 @@ class TikTokBackgroundModule(private val reactContext: ReactApplicationContext) 
                     }
                 }
 
-                // 2. Nếu thiếu session token (tt_chain_token) và có pageUrl, truy vấn nhanh page để lấy Set-Cookie
+                // 2. If session token is missing and pageUrl exists, fetch headers to extract Set-Cookie
                 if (!cookieHeader.contains("tt_chain_token") && !pageUrl.isNullOrEmpty()) {
                     try {
                         val pageReq = Request.Builder()
@@ -252,11 +252,11 @@ class TikTokBackgroundModule(private val reactContext: ReactApplicationContext) 
                             cookieHeader = if (cookieHeader.isNotEmpty()) "$cookieHeader; $freshCookies" else freshCookies
                         }
                     } catch (_: Exception) {
-                        // Tiếp tục tải với thông tin hiện có
+                        // Continue with available headers
                     }
                 }
 
-                // 3. Khởi tạo request tải luồng stream trực tiếp từ ByteDance CDN
+                // 3. Initialize streaming download request from ByteDance CDN
                 val reqBuilder = Request.Builder()
                     .url(mediaUrl)
                     .header("User-Agent", userAgent)
@@ -319,18 +319,18 @@ class TikTokBackgroundModule(private val reactContext: ReactApplicationContext) 
                 }
                 response.close()
 
-                // Báo cáo hoàn tất 100%
+                // Report 100% completion
                 sendDownloadProgress(fileName, 100.0, bytesCopied, bytesCopied, "completed")
 
-                // Quét vào Bộ sưu tập Android (Gallery / Photos) để hiển thị ngay lập tức
+                // Scan into Android MediaStore/Gallery for immediate visibility
                 MediaScannerConnection.scanFile(
                     reactContext,
                     arrayOf(destinationFile.absolutePath),
                     arrayOf(mimeType)
                 ) { _, _ -> }
 
-                // Hiển thị thông báo trên thanh thông báo Android
-                showDownloadNotification(title, "Đã lưu vào mục Tải về: $fileName")
+                // Display download completion notification in Android status bar
+                showDownloadNotification(title, "Saved to Downloads: $fileName")
 
                 val resultMap = Arguments.createMap().apply {
                     putBoolean("success", true)
@@ -349,7 +349,7 @@ class TikTokBackgroundModule(private val reactContext: ReactApplicationContext) 
 
     @ReactMethod
     fun downloadMediaFile(url: String, fileName: String, title: String, mimeType: String, promise: Promise) {
-        // Tự động chuyển tiếp sang Engine Streaming Native hoàn toàn độc lập
+        // Automatically delegate to standalone native streaming engine
         downloadMediaWithProgress(url, null, fileName, title, mimeType, null, promise)
     }
 

@@ -17,7 +17,7 @@ export function ThemeProvider({ children }) {
   const systemColorScheme = useColorScheme(); // 'dark' | 'light' | null | undefined
   const [themeMode, setThemeModeState] = useState('SYSTEM'); // 'SYSTEM' | 'DARK' | 'LIGHT'
 
-  // Nạp cài đặt theme đã lưu từ AsyncStorage khi khởi động
+  // Load persisted theme preference from AsyncStorage on startup
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
       if (saved && ['SYSTEM', 'DARK', 'LIGHT'].includes(saved)) {
@@ -31,14 +31,14 @@ export function ThemeProvider({ children }) {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode);
     } catch (e) {
-      console.warn('Lỗi lưu theme:', e);
+      console.warn('Failed to save theme preference:', e);
     }
   };
 
-  // Tính toán isDarkMode thực tế dựa theo themeMode
+  // Compute effective isDarkMode based on current themeMode setting
   let isDarkMode = true;
   if (themeMode === 'SYSTEM') {
-    isDarkMode = systemColorScheme !== 'light'; // Mặc định dark nếu hệ thống là dark hoặc không xác định
+    isDarkMode = systemColorScheme !== 'light'; // Default to dark if system is dark or undefined
   } else if (themeMode === 'DARK') {
     isDarkMode = true;
   } else if (themeMode === 'LIGHT') {
@@ -46,7 +46,7 @@ export function ThemeProvider({ children }) {
   }
 
   const toggleTheme = () => {
-    // Chuyển đổi nhanh Dark <-> Light và lưu lại
+    // Quick toggle between Dark and Light mode with persistence
     const nextMode = isDarkMode ? 'LIGHT' : 'DARK';
     setThemeMode(nextMode);
   };

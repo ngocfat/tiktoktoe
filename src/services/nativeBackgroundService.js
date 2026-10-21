@@ -8,36 +8,36 @@ export const nativeBackgroundService = {
   },
 
   /**
-   * Khởi động Foreground Service để giữ tiến trình Android luôn chạy ngầm
+   * Starts Foreground Service to keep Android process alive in background
    */
   async startForegroundService(
-    title = 'TikTokToe • Tự động giữ chuỗi',
-    message = 'Dịch vụ đang chạy ngầm để bảo vệ chuỗi TikTok 24/7...'
+    title = 'TikTokToe: Automated Streak Keeper',
+    message = 'Background service is running to maintain 24/7 streak automation...'
   ) {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.startForegroundService(title, message);
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi startForegroundService:', e);
+      console.warn('[NativeBackground] startForegroundService error:', e);
       return false;
     }
   },
 
   /**
-   * Dừng Foreground Service
+   * Stops Foreground Service
    */
   async stopForegroundService() {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.stopForegroundService();
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi stopForegroundService:', e);
+      console.warn('[NativeBackground] stopForegroundService error:', e);
       return false;
     }
   },
 
   /**
-   * Kiểm tra Foreground Service có đang chạy không
+   * Checks whether Foreground Service is currently running
    */
   async isForegroundServiceRunning() {
     if (!this.isAvailable()) return false;
@@ -49,46 +49,46 @@ export const nativeBackgroundService = {
   },
 
   /**
-   * Đặt chuông báo thức chính xác từng giây qua Android AlarmManager (WAKE_UP)
+   * Schedules exact second-accurate alarm via Android AlarmManager (WAKE_UP)
    */
   async scheduleExactAlarm(id, timestampMs) {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.scheduleExactAlarm(String(id), Number(timestampMs));
     } catch (e) {
-      console.warn(`[NativeBackground] Lỗi scheduleExactAlarm ${id}:`, e);
+      console.warn(`[NativeBackground] scheduleExactAlarm error for ${id}:`, e);
       return false;
     }
   },
 
   /**
-   * Hủy chuông báo thức cho task id
+   * Cancels exact alarm for given task ID
    */
   async cancelExactAlarm(id) {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.cancelExactAlarm(String(id));
     } catch (e) {
-      console.warn(`[NativeBackground] Lỗi cancelExactAlarm ${id}:`, e);
+      console.warn(`[NativeBackground] cancelExactAlarm error for ${id}:`, e);
       return false;
     }
   },
 
   /**
-   * Hiển thị thông báo kết quả ra thanh thông báo Android
+   * Displays local notification on Android status bar
    */
   async showLocalNotification(title, message) {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.showLocalNotification(title, message);
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi showLocalNotification:', e);
+      console.warn('[NativeBackground] showLocalNotification error:', e);
       return false;
     }
   },
 
   /**
-   * Kiểm tra app đã được miễn trừ tối ưu hóa pin chưa
+   * Checks if app is exempt from battery optimization
    */
   async isIgnoringBatteryOptimizations() {
     if (!this.isAvailable()) return true;
@@ -100,21 +100,21 @@ export const nativeBackgroundService = {
   },
 
   /**
-   * Mở cài đặt hệ thống để người dùng cho phép app chạy ngầm không bị pin hạn chế
+   * Opens system settings requesting battery optimization exemption
    */
   async requestIgnoreBatteryOptimizations() {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.requestIgnoreBatteryOptimizations();
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi requestIgnoreBatteryOptimizations:', e);
+      console.warn('[NativeBackground] requestIgnoreBatteryOptimizations error:', e);
       return false;
     }
   },
 
   /**
-   * Tải file video/audio về máy bằng Engine Native Stream trực tiếp độc lập
-   * Báo cáo tiến trình thời gian thực (0% - 100%) và tự quét vào Bộ sưu tập
+   * Downloads media file using native streaming engine with progress tracking
+   * Scans output into Android MediaStore/Gallery upon completion
    */
   async downloadMediaWithProgress(
     mediaUrl,
@@ -125,7 +125,7 @@ export const nativeBackgroundService = {
     customCookie = ''
   ) {
     if (!this.isAvailable()) {
-      throw new Error('Tính năng chỉ khả dụng trên ứng dụng Android!');
+      throw new Error('Feature available only on Android platform');
     }
     try {
       return await TikTokBackgroundModule.downloadMediaWithProgress(
@@ -137,26 +137,26 @@ export const nativeBackgroundService = {
         customCookie
       );
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi downloadMediaWithProgress:', e);
+      console.warn('[NativeBackground] downloadMediaWithProgress error:', e);
       throw e;
     }
   },
 
   /**
-   * Tải file video/audio về máy
+   * Downloads media file to device
    */
   async downloadMediaFile(url, fileName, title = 'TikTokToe Media', mimeType = 'video/mp4') {
     if (!this.isAvailable()) return false;
     try {
       return await TikTokBackgroundModule.downloadMediaFile(url, fileName, title, mimeType);
     } catch (e) {
-      console.warn('[NativeBackground] Lỗi downloadMediaFile:', e);
+      console.warn('[NativeBackground] downloadMediaFile error:', e);
       throw e;
     }
   },
 
   /**
-   * Đọc nội dung bộ nhớ tạm (Clipboard) từ hệ thống Android
+   * Reads clipboard text from Android system
    */
   async getClipboardText() {
     if (!this.isAvailable()) return '';
@@ -168,7 +168,7 @@ export const nativeBackgroundService = {
   },
 
   /**
-   * Ghi nội dung vào bộ nhớ tạm (Clipboard) của hệ thống Android
+   * Copies text to Android system clipboard
    */
   async setClipboardText(text) {
     if (!this.isAvailable()) return false;

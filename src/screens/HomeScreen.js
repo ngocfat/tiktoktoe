@@ -48,7 +48,7 @@ export default function HomeScreen({
     if (isRefresh) setRefreshing(true);
 
     try {
-      // 1. Nạp cache profile
+      // 1. Load cached profile
       if (!profile) {
         const stored = await AsyncStorage.getItem(CACHED_PROFILE_KEY);
         if (stored) {
@@ -58,7 +58,7 @@ export default function HomeScreen({
         }
       }
 
-      // 2. Fetch profile mới nhất từ API
+      // 2. Fetch latest profile from API
       if (cookieStr) {
         fetchCurrentAccountProfile(cookieStr)
           .then((prof) => {
@@ -70,7 +70,7 @@ export default function HomeScreen({
           .catch(() => {});
       }
 
-      // 3. Đếm số lượng cuộc trò chuyện & số chuỗi
+      // 3. Count conversations and active streaks
       const schedMap = scheduleWorker.getActiveConversationMap ? scheduleWorker.getActiveConversationMap() : {};
       const activeStreaks = Object.values(schedMap).filter((s) => s.isStreak || s.hasSchedule).length;
       setStreakCount(activeStreaks);
@@ -104,7 +104,7 @@ export default function HomeScreen({
     return unsub;
   }, [loadData]);
 
-  // Bật/tắt dịch vụ nền tự động
+  // Toggle background auto service
   const handleToggleBgService = async () => {
     const nextVal = !isBgEnabled;
     setIsBgEnabled(nextVal);
@@ -112,7 +112,7 @@ export default function HomeScreen({
     showToast(nextVal ? 'Đã bật dịch vụ nền tự động.' : 'Đã tắt dịch vụ nền tự động.');
   };
 
-  // Dán nhanh link từ clipboard
+  // Quick paste link from clipboard
   const handlePasteClipboard = async () => {
     try {
       const text = await nativeBackgroundService.getClipboardText();
@@ -127,7 +127,7 @@ export default function HomeScreen({
     }
   };
 
-  // Lấy video trực tiếp từ ô nhập nhanh
+  // Quick download video from input
   const handleQuickDownload = () => {
     if (!quickUrl.trim()) {
       Alert.alert('Chưa có link', 'Vui lòng dán link TikTok trước khi tải!');
@@ -140,7 +140,7 @@ export default function HomeScreen({
     }
   };
 
-  // Mở thẳng trình tải từ nút Tách nhạc MP3 hoặc Dán link
+  // Open downloader directly from audio extraction or paste action
   const handleOpenDownloaderDirectly = async (autoPaste = false) => {
     if (autoPaste) {
       try {
@@ -158,7 +158,7 @@ export default function HomeScreen({
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      {/* 1. Header chính của Hub (Logo VietinBank style + Status Pill không border + Nút chức năng) */}
+      {/* 1. Main Hub header (Brand logo, borderless status pill, action buttons) */}
       <View style={[styles.topHeader, { backgroundColor: theme.bg, borderBottomColor: theme.divider }]}>
         <View style={styles.brandRow}>
           <View style={[styles.brandIconWrapper, { backgroundColor: 'rgba(254, 44, 85, 0.12)' }]}>
@@ -171,7 +171,7 @@ export default function HomeScreen({
         </View>
 
         <View style={styles.headerRightActions}>
-          {/* Trạng thái Dịch vụ nền: RULE CỨNG: KHÔNG ĐỂ BORDER */}
+          {/* Background service status pill (borderless) */}
           <TouchableOpacity
             style={[
               styles.statusPillNoBorder,
@@ -200,7 +200,7 @@ export default function HomeScreen({
             </Text>
           </TouchableOpacity>
 
-          {/* Nút Đổi Theme */}
+          {/* Theme switch button */}
           <TouchableOpacity
             style={[styles.circleActionBtn, { backgroundColor: theme.surface }]}
             onPress={toggleTheme}
@@ -213,7 +213,7 @@ export default function HomeScreen({
             />
           </TouchableOpacity>
 
-          {/* Nút Cài đặt */}
+          {/* Settings button */}
           <TouchableOpacity
             style={[styles.circleActionBtn, { backgroundColor: theme.surface }]}
             onPress={() => onNavigate('SETTINGS')}
@@ -230,7 +230,7 @@ export default function HomeScreen({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor={theme.tiktokRed} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* 2. Thẻ Profile người dùng (Hero Card chuẩn bố cục VietinBank: Avatar tự nhiên, Tên, Handle, UID) */}
+        {/* 2. User Profile Hero Card (Avatar, Nickname, Handle, UID) */}
         <View style={[styles.profileHeroCard, { backgroundColor: theme.bgSecondary, borderColor: theme.border }]}>
           <View style={styles.profileHeroRow}>
             {profile?.avatar ? (
@@ -262,9 +262,9 @@ export default function HomeScreen({
           </View>
         </View>
 
-        {/* 3. Khung 3 thẻ nổi tóm tắt (Floating 3 Cards chuẩn bố cục VietinBank: Tài khoản / Dịch vụ thẻ / QR Pay) */}
+        {/* 3. Floating 3-card summary bar */}
         <View style={[styles.floatingSummaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          {/* Card 1: Hộp thư */}
+          {/* Card 1: Inbox */}
           <TouchableOpacity
             style={styles.summaryItem}
             activeOpacity={0.7}
@@ -281,7 +281,7 @@ export default function HomeScreen({
 
           <View style={[styles.summaryDivider, { backgroundColor: theme.divider }]} />
 
-          {/* Card 2: Chuỗi Lửa */}
+          {/* Card 2: Fire Streak */}
           <TouchableOpacity
             style={styles.summaryItem}
             activeOpacity={0.7}
@@ -298,7 +298,7 @@ export default function HomeScreen({
 
           <View style={[styles.summaryDivider, { backgroundColor: theme.divider }]} />
 
-          {/* Card 3: Tải Video HD */}
+          {/* Card 3: Video Downloader */}
           <TouchableOpacity
             style={styles.summaryItem}
             activeOpacity={0.7}
@@ -312,7 +312,7 @@ export default function HomeScreen({
           </TouchableOpacity>
         </View>
 
-        {/* 4. Lưới Tiện Ích Dạng Ngân Hàng (Icon Grid 4 Cột chuẩn VietinBank - Không tag HOT/Mới, Không trùng lặp) */}
+        {/* 4. Feature icon grid */}
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Dịch Vụ & Tiện Ích</Text>
           <Text style={[styles.sectionSub, { color: theme.textSecondary }]}>Chọn chức năng muốn sử dụng</Text>
@@ -320,7 +320,7 @@ export default function HomeScreen({
 
         <View style={[styles.featureGrid, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.gridRow}>
-            {/* 1. Tin nhắn & Giữ chuỗi (Gộp 2 trong 1) */}
+            {/* 1. Messages and streaks */}
             <TouchableOpacity
               style={styles.gridItem}
               activeOpacity={0.7}
@@ -333,7 +333,7 @@ export default function HomeScreen({
               <Text style={[styles.gridSubLabel, { color: theme.textMuted }]}>& Giữ chuỗi</Text>
             </TouchableOpacity>
 
-            {/* 2. Tải Video TikTok (Mô tả ngắn gọn) */}
+            {/* 2. Video downloader */}
             <TouchableOpacity
               style={styles.gridItem}
               activeOpacity={0.7}
@@ -346,7 +346,7 @@ export default function HomeScreen({
               <Text style={[styles.gridSubLabel, { color: theme.textMuted }]}>MP4 HD & MP3</Text>
             </TouchableOpacity>
 
-            {/* 3. Tách Nhạc MP3 */}
+            {/* 3. Audio extraction */}
             <TouchableOpacity
               style={styles.gridItem}
               activeOpacity={0.7}
@@ -359,7 +359,7 @@ export default function HomeScreen({
               <Text style={[styles.gridSubLabel, { color: theme.textMuted }]}>Audio MP3</Text>
             </TouchableOpacity>
 
-            {/* 4. Dán Link Nhanh */}
+            {/* 4. Quick paste from clipboard */}
             <TouchableOpacity
               style={styles.gridItem}
               activeOpacity={0.7}
@@ -374,7 +374,7 @@ export default function HomeScreen({
           </View>
         </View>
 
-        {/* 5. Tính Năng Nổi Bật: Thẻ Banner Đồ Họa kiểu ngân hàng (Không border) */}
+        {/* 5. Featured banner card */}
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Tính Năng Nổi Bật</Text>
         </View>
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  // RULE CỨNG: KHÔNG ĐỂ BORDER
+  // Borderless status pill
   statusPillNoBorder: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  // LƯỚI ICON KIỂU NGÂN HÀNG (4 CỘT)
+  // Feature grid style
   featureGrid: {
     borderRadius: 18,
     paddingVertical: 12,

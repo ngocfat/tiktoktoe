@@ -1,9 +1,9 @@
 /**
- * Background Scheduler Worker cho ứng dụng TikTok
- * Kết hợp 3 tầng chạy ngầm:
- * 1. Android Foreground Service: Giữ tiến trình app không bị Android tắt khi vuốt đóng app
- * 2. Android AlarmManager (Exact Alarm + Headless JS): Đánh thức thiết bị chính xác từng giây để gửi
- * 3. In-App Timer: Đếm ngược thời gian thực trên giao diện khi người dùng đang mở app
+ * Background Scheduler Worker for TikTok application
+ * Combines 3 background tiers:
+ * 1. Android Foreground Service: Prevents app process termination when swiped from recents
+ * 2. Android AlarmManager (Exact Alarm + Headless JS): Wakes device at exact second to execute tasks
+ * 3. In-App Timer: Real-time countdown on active user interface when app is in foreground
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendTiktokMessage } from './tiktokApi.js';
@@ -24,7 +24,7 @@ class ScheduleWorkerManager {
     this.runningConvIds = new Set();
     this.isTicking = false;
 
-    // Tự động nạp dữ liệu từ AsyncStorage khi khởi tạo
+    // Load persisted tasks and preferences on initialization
     this.init();
   }
 
@@ -33,24 +33,24 @@ class ScheduleWorkerManager {
     await this.loadBgPreference();
     this.startWorker();
 
-    // Đồng bộ tất cả các task pending vào Android AlarmManager
+    // Synchronize pending tasks to Android AlarmManager
     this.syncAllAlarmsToNative();
 
-    // Tự động kích hoạt Foreground Service nếu có task giữ chuỗi đang chờ
+    // Automatically trigger Foreground Service if pending streak tasks exist
     if (this.isBgServiceEnabled && this.hasPendingTasks()) {
       nativeBackgroundService.startForegroundService();
     }
   }
 
   /**
-   * Kiểm tra xem có task nào đang chờ chạy không
+   * Checks whether pending tasks exist in queue
    */
   hasPendingTasks() {
     return this.tasks.some((t) => t.status === 'PENDING');
   }
 
   /**
-   * Nạp tùy chọn chạy ngầm đã lưu
+   * Loads persisted background service preferences
    */
   async loadBgPreference() {
     try {
@@ -58,13 +58,13 @@ class ScheduleWorkerManager {
       if (val !== null) {
         this.isBgServiceEnabled = val === 'true';
       } else {
-        this.isBgServiceEnabled = true; // Mặc định BẬT để đảm bảo giữ chuỗi không bị đứt
+        this.isBgServiceEnabled = true; // Default ON to ensure streaks are maintained
       }
     } catch (_) {}
   }
 
   /**
-   * Bật / Tắt dịch vụ Foreground Service chạy ngầm
+   * Toggles Android Foreground Service persistence
    */
   async setBackgroundServiceEnabled(enabled) {
     this.isBgServiceEnabled = enabled;
@@ -83,7 +83,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Nạp danh sách tác vụ từ bộ nhớ bền vững (AsyncStorage)
+   * Loads task queue from AsyncStorage
    */
   async loadTasks() {
     try {
@@ -99,7 +99,7 @@ class ScheduleWorkerManager {
             if (t.status === 'PENDING') {
               if (seenPendingConvs.has(t.conversationId)) {
                 t.status = 'CANCELLED';
-                t.resultMsg = 'Hủy bỏ (dọn dẹp lịch trùng lặp)';
+                t.resultMsg = 'Cancelled (cleaned duplicate schedule)';
               } else {
                 seenPendingConvs.add(t.conversationId);
               }
@@ -110,25 +110,25 @@ class ScheduleWorkerManager {
         }
       }
     } catch (e) {
-      console.warn('[ScheduleWorker] Lỗi nạp tasks từ AsyncStorage:', e);
+      console.warn('[ScheduleWorker] Error loading tasks from AsyncStorage:', e);
     } finally {
       this.isLoaded = true;
     }
   }
 
   /**
-   * Lưu danh sách tác vụ vào bộ nhớ bền vững
+   * Persists task queue to AsyncStorage
    */
   async saveTasks() {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(this.tasks));
     } catch (e) {
-      console.warn('[ScheduleWorker] Lỗi lưu tasks vào AsyncStorage:', e);
+      console.warn('[ScheduleWorker] Error saving tasks to AsyncStorage:', e);
     }
   }
 
   /**
-   * Cập nhật cookie mới cho tất cả các task đang chờ chạy
+   * Updates session cookie string for all pending tasks
    */
   updateAllPendingCookies(newCookieStr) {
     if (!newCookieStr) return;
@@ -145,7 +145,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Đồng bộ toàn bộ các task PENDING sang Android AlarmManager
+   * Synchronizes all PENDING tasks to Android AlarmManager
    */
   syncAllAlarmsToNative() {
     const now = Date.now();
@@ -157,7 +157,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Khởi chạy Worker kiểm tra khi app đang mở (mỗi 2000ms)
+   * Starts in-app polling timer (runs every 2000ms while app is active)
    */
   startWorker() {
     if (this.intervalId) return;
@@ -175,8 +175,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Vòng lặp kiểm tra thời gian thực
-   * Chỉ kích hoạt notify() khi có tác vụ thực sự được thực thi
+   * Real-time polling tick
    */
   async tick() {
     if (this.isTicking) return;
@@ -193,7 +192,6 @@ class ScheduleWorkerManager {
         }
       }
 
-      // Chỉ thông báo re-render giao diện nếu có tác vụ vừa hoàn tất
       if (hasExecuted) {
         this.notify();
       }
@@ -203,8 +201,8 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Kiểm tra và thực thi ngay lập tức tất cả các tác vụ đã đến hạn
-   * Được gọi khi app khởi động hoặc khi quay lại foreground
+   * Checks and immediately executes all overdue tasks
+   * Invoked on app launch and foreground return
    */
   async checkAndExecutePendingTasks(freshCookieStr = null) {
     if (freshCookieStr) {
@@ -222,14 +220,14 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Thực hiện gửi tin nhắn khi đến giờ hẹn
+   * Executes scheduled task when trigger time is reached
    */
   async executeTask(task) {
     if (task.status !== 'PENDING') return;
 
-    // 0. Khóa đồng bộ trong bộ nhớ ngay lập tức (Single Thread Protection)
+    // In-memory concurrency guard (Single Thread Protection)
     if (this.runningTaskIds.has(task.id) || this.runningConvIds.has(task.conversationId)) {
-      console.log(`[ScheduleWorker] Tác vụ ${task.id} hoặc cuộc trò chuyện ${task.conversationId} đang được gửi. Bỏ qua.`);
+      console.log(`[ScheduleWorker] Task ${task.id} or conversation ${task.conversationId} is currently executing. Skipping.`);
       return;
     }
     this.runningTaskIds.add(task.id);
@@ -240,26 +238,26 @@ class ScheduleWorkerManager {
       const taskLockKey = `TASK_EXEC_LOCK_${task.id}`;
       const convLockKey = `CONV_LAST_SENT_${task.conversationId}`;
 
-      // 1. Kiểm tra khoá để đảm bảo không tiến trình nào khác (ví dụ HeadlessJS) chạy đồng thời
+      // Distributed locks preventing concurrent HeadlessJS race condition
       const [taskLocked, convLocked] = await Promise.all([
         AsyncStorage.getItem(taskLockKey),
         AsyncStorage.getItem(convLockKey),
       ]);
 
       if (taskLocked && (now - parseInt(taskLocked, 10)) < 300000) {
-        console.log(`[ScheduleWorker] Task ${task.id} đã bị khóa bởi tiến trình khác. Bỏ qua.`);
+        console.log(`[ScheduleWorker] Task ${task.id} is locked by another process. Skipping.`);
         return;
       }
 
       if (convLocked && (now - parseInt(convLocked, 10)) < 300000) {
-        console.log(`[ScheduleWorker] Cuộc trò chuyện ${task.conversationId} vừa được gửi tin trong 5 phút qua. Bỏ qua để chống trùng.`);
+        console.log(`[ScheduleWorker] Conversation ${task.conversationId} messaged within last 5 minutes. Skipping duplicate.`);
         task.status = 'CANCELLED';
-        task.resultMsg = 'Bỏ qua (đã gửi trước đó)';
+        task.resultMsg = 'Skipped (already sent previously)';
         this.saveTasks();
         return;
       }
 
-      // Đánh dấu khoá ngay lập tức để chặn mọi luồng khác
+      // Acquire lock immediately
       await Promise.all([
         AsyncStorage.setItem(taskLockKey, String(now)),
         AsyncStorage.setItem(convLockKey, String(now)),
@@ -279,7 +277,7 @@ class ScheduleWorkerManager {
             task.messageText = contentToSend;
           }
         } catch (e) {
-          console.warn('Lỗi AI sinh câu giữ chuỗi:', e);
+          console.warn('Gemini AI streak message generation error:', e);
         }
       }
 
@@ -295,33 +293,33 @@ class ScheduleWorkerManager {
         if (res.success) {
           task.status = 'SUCCESS';
           task.serverMsgId = res.serverMsgId || 'OK';
-          task.resultMsg = `Gửi thành công (Msg ID: ${res.serverMsgId || 'OK'})`;
+          task.resultMsg = `Successfully sent (Msg ID: ${res.serverMsgId || 'OK'})`;
 
-          // Thông báo kết quả ra Android
+          // Local Android notification
           nativeBackgroundService.showLocalNotification(
-            'TikTokToe: Giữ chuỗi thành công',
-            `Đã gửi tin nhắn tới ${task.targetNickname}: "${contentToSend}"`
+            'TikTokToe: Streak Sent Successfully',
+            `Sent message to ${task.targetNickname}: "${contentToSend}"`
           );
         } else {
           task.status = 'FAILED';
-          task.resultMsg = `Thất bại: ${res.statusText || 'Lỗi không xác định'}`;
+          task.resultMsg = `Failed: ${res.statusText || 'Unknown error'}`;
 
           nativeBackgroundService.showLocalNotification(
-            'TikTokToe: Gửi giữ chuỗi thất bại',
-            `Gửi tới ${task.targetNickname} thất bại: ${res.statusText || 'Lỗi phiên'}`
+            'TikTokToe: Streak Send Failed',
+            `Sending to ${task.targetNickname} failed: ${res.statusText || 'Session error'}`
           );
         }
       } catch (err) {
         task.status = 'FAILED';
-        task.resultMsg = `Lỗi mạng: ${err.message}`;
+        task.resultMsg = `Network error: ${err.message}`;
 
         nativeBackgroundService.showLocalNotification(
-          'TikTokToe: Lỗi mạng giữ chuỗi',
-          `Lỗi kết nối tới ${task.targetNickname}: ${err.message}`
+          'TikTokToe: Network Connection Error',
+          `Connection error to ${task.targetNickname}: ${err.message}`
         );
       }
 
-      // Nếu người dùng chọn lặp lại mỗi ngày (giữ chuỗi TikTok)
+      // Schedule for next 24-hour cycle if repeatDaily is enabled
       if (task.repeatDaily && task.status === 'SUCCESS') {
         const nextDayTime = task.scheduledTime + 24 * 60 * 60 * 1000;
         const nextTask = {
@@ -336,7 +334,7 @@ class ScheduleWorkerManager {
         };
         this.tasks.push(nextTask);
 
-        // Đặt chuông báo thức Android cho ngày hôm sau
+        // Schedule next AlarmManager trigger
         nativeBackgroundService.scheduleExactAlarm(nextTask.id, nextDayTime);
       }
 
@@ -349,13 +347,13 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Thêm lịch hẹn mới
+   * Adds new scheduled task
    */
   addTask({
     conversationId,
     conversationType = 1,
     conversationShortId = '',
-    targetNickname = 'Người nhận',
+    targetNickname = 'Recipient',
     targetAvatar = '',
     messageText,
     scheduledTime, // timestamp (ms)
@@ -363,7 +361,7 @@ class ScheduleWorkerManager {
     useAiDaily = false,
     cookieStr,
   }) {
-    // 1. Tự động hủy và dọn dẹp MỌI task PENDING cũ của cuộc trò chuyện này (chống trùng lặp event)
+    // Automatically cancel prior PENDING tasks for this conversation to prevent duplicate triggers
     const oldPending = this.tasks.filter(
       (t) => t.conversationId === conversationId && t.status === 'PENDING'
     );
@@ -396,14 +394,14 @@ class ScheduleWorkerManager {
     this.tasks.push(newTask);
     this.saveTasks();
 
-    // 1. Đặt chuông báo thức Android AlarmManager (chính xác từng giây kể cả khi tắt app)
+    // 1. Arm Android AlarmManager for second-accurate execution
     nativeBackgroundService.scheduleExactAlarm(newTask.id, scheduledTime);
 
-    // 2. Nếu tùy chọn chạy ngầm đang bật, kích hoạt Foreground Service để giữ tiến trình
+    // 2. Start Foreground Service if background persistence is enabled
     if (this.isBgServiceEnabled) {
       nativeBackgroundService.startForegroundService(
-        'TikTokToe • Tự động giữ chuỗi',
-        `Có lịch hẹn gửi lúc ${new Date(scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} cho ${targetNickname}`
+        'TikTokToe: Automated Streak Keeper',
+        `Scheduled message at ${new Date(scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} for ${targetNickname}`
       );
     }
 
@@ -413,13 +411,13 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Hủy một tác vụ đang chờ
+   * Cancels pending task
    */
   cancelTask(taskId) {
     const task = this.tasks.find((t) => t.id === taskId);
     if (task && task.status === 'PENDING') {
       task.status = 'CANCELLED';
-      task.resultMsg = 'Đã hủy bởi người dùng';
+      task.resultMsg = 'Cancelled by user';
       nativeBackgroundService.cancelExactAlarm(taskId);
       this.saveTasks();
       this.notify();
@@ -429,7 +427,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Xóa tác vụ khỏi danh sách
+   * Deletes task from list
    */
   deleteTask(taskId) {
     nativeBackgroundService.cancelExactAlarm(taskId);
@@ -439,7 +437,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Xóa toàn bộ tác vụ đã hoàn thành / đã hủy
+   * Clears all completed or cancelled tasks
    */
   clearCompletedTasks() {
     this.tasks = this.tasks.filter((t) => t.status === 'PENDING' || t.status === 'SENDING');
@@ -448,7 +446,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Lấy danh sách tác vụ (có thể lọc theo hội thoại)
+   * Retrieves tasks (optionally filtered by conversation ID)
    */
   getTasks(conversationId = null) {
     if (conversationId) {
@@ -458,7 +456,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Trả về Map các hội thoại có tác vụ đang chờ chạy (PENDING)
+   * Returns conversation map of currently PENDING tasks
    */
   getActiveConversationMap() {
     const map = {};
@@ -484,7 +482,7 @@ class ScheduleWorkerManager {
   }
 
   /**
-   * Đăng ký lắng nghe sự kiện thay đổi tác vụ / countdown
+   * Subscribes listener to task queue updates
    */
   subscribe(callback) {
     this.listeners.add(callback);
@@ -499,11 +497,11 @@ class ScheduleWorkerManager {
       try {
         listener(this.tasks);
       } catch (e) {
-        console.warn('Lỗi listener worker:', e);
+        console.warn('Worker listener error:', e);
       }
     }
   }
 }
 
-// Khởi tạo Singleton duy nhất cho toàn bộ app
+// Global Singleton Instance
 export const scheduleWorker = new ScheduleWorkerManager();

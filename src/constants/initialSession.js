@@ -1,6 +1,6 @@
 /**
- * Session mặc định đã trích xuất từ test_webview_login.py
- * Cho phép dùng ngay lập tức mà không cần quét lại mã QR nếu cookie còn hạn.
+ * Default session extracted from login interception.
+ * Allows immediate operation without rescanning QR if cookies remain valid.
  */
 export const DEFAULT_SESSION_COOKIES = {
   "_ttp": "3DevJxoEsy9eLGZARvyzgTGnnaL",

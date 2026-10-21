@@ -40,7 +40,7 @@ class DebugLoggerService {
   }
 
   /**
-   * Ghi log gỡ lỗi
+   * Records debug log entry
    * @param {string} module 'VIDEO_EXTRACT' | 'VIDEO_DOWNLOAD' | 'NETWORK' | 'TIKTOK_API' | 'SYSTEM'
    * @param {'info' | 'success' | 'warn' | 'error'} level
    * @param {string} message
@@ -68,7 +68,7 @@ class DebugLoggerService {
       this.logs.pop();
     }
 
-    // In ra console log native để tiện theo dõi qua ADB / Terminal
+    // Print to native console for ADB / terminal inspection
     const tag = `[${logEntry.timestamp}][${logEntry.module}][${logEntry.level.toUpperCase()}]`;
     if (level === 'error') {
       console.error(tag, message, details || '');
@@ -113,5 +113,5 @@ class DebugLoggerService {
 }
 
 export const debugLogger = new DebugLoggerService();
-// Khởi tạo ngay trạng thái từ AsyncStorage
+// Initialize persisted state from AsyncStorage immediately
 debugLogger.init();

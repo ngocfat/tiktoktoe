@@ -1,6 +1,6 @@
 /**
- * Trình sinh chữ ký X-Bogus thuần JavaScript cho TikTok Web API
- * Chạy 100% độc lập trên React Native / Expo mà không cần server hay giả lập
+ * Pure JavaScript X-Bogus signature generator for TikTok Web API
+ * Runs 100% standalone inside React Native / Expo without external backend dependencies
  */
 import sign from './xbogus.js';
 
@@ -9,7 +9,7 @@ export function generateXBogus(url, userAgent) {
     const queryString = url.includes('?') ? url.split('?')[1] : url;
     return sign(queryString, userAgent);
   } catch (err) {
-    console.warn('Lỗi sinh X-Bogus:', err);
+    console.warn('Failed to generate X-Bogus signature:', err);
     return '';
   }
 }
