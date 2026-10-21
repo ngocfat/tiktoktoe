@@ -7,27 +7,89 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Alert,
-  TextInput,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { DEFAULT_SESSION_COOKIES, cookieObjToString } from '../constants/initialSession';
-import { REAL_APP_SESSION, getRealAppCookieString } from '../constants/realAppSession';
 
 export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = false }) {
   const [loading, setLoading] = useState(true);
   const [isLoggedInDetected, setIsLoggedInDetected] = useState(false);
   const [capturedCookies, setCapturedCookies] = useState('');
   const [webViewKey, setWebViewKey] = useState(isFreshLogout ? 100 : 1);
-  const [currentUrl, setCurrentUrl] = useState('https://www.tiktok.com/login');
-  const [showManualPaste, setShowManualPaste] = useState(false);
-  const [manualCookieInput, setManualCookieInput] = useState('');
-  const [extracting, setExtracting] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('https://www.tiktok.com/login/qrcode');
   const webViewRef = useRef(null);
 
-  // Automated cookie detection and login state polling script
+  // Automated cookie detection and DOM optimization script
+  // Hides TikTok headers and footers to ensure QR code has 100% visibility
   const injectedCheckCookies = `
     (function() {
+      try {
+        var style = document.createElement('style');
+        style.type = 'text/css';
+        style.innerHTML = \`
+          /* Hide TikTok website chrome to maximize QR code visibility */
+          [class*="DivHeaderContainer"],
+          [class*="StyledHeaderContainer"],
+          [class*="AHelpTag"],
+          [class*="DivFooterContainer"],
+          [class*="DivBottomContainer"],
+          [class*="DivCopyright"],
+          [class*="PSelectContainer"],
+          [class*="SelectFormContainer"],
+          footer,
+          [class*="footer"],
+          [class*="DivBottomText"],
+          [class*="feedback"],
+          [class*="Feedback"],
+          [class*="DivFeedbackLink"],
+          [class*="DivDownloadLinkContainer"] {
+            display: none !important;
+          }
+
+          /* Container layout adjustments */
+          html, body {
+            background-color: #121214 !important;
+            color: #FFFFFF !important;
+            overflow: auto !important;
+          }
+
+          [class*="DivContainer"],
+          [class*="DivBodyContainer"],
+          [class*="DivLoginContainer"] {
+            padding-top: 4px !important;
+            padding-bottom: 4px !important;
+            margin-top: 0 !important;
+            min-height: auto !important;
+            background: transparent !important;
+            box-shadow: none !important;
+          }
+
+          /* Center QR code container cleanly */
+          [class*="DivQRContentBody"],
+          [class*="DivQRBox"] {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: 6px auto !important;
+            padding: 4px !important;
+          }
+
+          [class*="DivCodeImage"] {
+            margin: 0 auto !important;
+          }
+
+          [class*="ImgCode"] {
+            max-width: 280px !important;
+            max-height: 280px !important;
+            border-radius: 8px !important;
+          }
+        \`;
+        document.head.appendChild(style);
+      } catch (e) {}
+
+      // Periodic check for session authorization
       var checkTimer = setInterval(function() {
         var cookies = document.cookie || '';
         var onHomeFeed = window.location.href.indexOf('/login') === -1 && 
@@ -41,86 +103,26 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
             cookies: cookies
           }));
         }
-      }, 2000);
+      }, 1500);
     })();
     true;
   `;
 
-  // Force logout: resets session state and reloads WebView in clean incognito container
+  // Resets session state and reloads WebView in a fresh container
   const handleForceLogout = () => {
     setIsLoggedInDetected(false);
     setCapturedCookies('');
-    setCurrentUrl('https://www.tiktok.com/login');
+    setCurrentUrl('https://www.tiktok.com/login/qrcode');
     setWebViewKey((prev) => prev + 1);
-    Alert.alert('Session Cleared', 'Previous session invalidated. WebView reset to clean incognito container.');
+    Alert.alert('Session Cleared', 'WebView reloaded in clean incognito container.');
   };
 
-  // Switch between login modes (QR Code, Email/Password, or All/OAuth)
+  // Switch between login modes
   const navigateLoginMode = (url) => {
     setCurrentUrl(url);
     if (webViewRef.current) {
       webViewRef.current.injectJavaScript(`window.location.href = "${url}"; true;`);
     }
-  };
-
-  // Feature: Extract cookies directly from native TikTok app via ADB Bridge Server or saved session
-  const handleExtractFromRealApp = async () => {
-    setExtracting(true);
-    const bridgeUrls = [
-      'http://10.0.2.2:5005/extract-session',
-      'http://192.168.1.19:5005/extract-session',
-      'http://localhost:5005/extract-session',
-    ];
-
-    let extractedData = null;
-
-    for (const url of bridgeUrls) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.cookies && Object.keys(data.cookies).length > 0) {
-            extractedData = data;
-            break;
-          }
-        }
-      } catch (e) {
-        // Continue to next bridge endpoint
-      }
-    }
-
-    setExtracting(false);
-
-    if (extractedData && extractedData.cookie_string) {
-      Alert.alert(
-        'Extraction Successful',
-        `Successfully extracted cookies from native TikTok app!\n• Nickname: ${extractedData.nickname || 'N/A'}\n• UID: ${extractedData.uid || 'N/A'}\n• Cookie count: ${Object.keys(extractedData.cookies).length}`,
-        [
-          {
-            text: 'Enter Inbox Now',
-            onPress: () => onLoginSuccess(extractedData.cookie_string),
-          },
-        ]
-      );
-      return;
-    }
-
-    // Fallback to pre-extracted native app session if bridge server is offline
-    const realCookieStr = getRealAppCookieString();
-    Alert.alert(
-      'Load Native Session',
-      `Loading cookies extracted from native TikTok app (RainX - UID: ${REAL_APP_SESSION.uid})`,
-      [
-        {
-          text: 'Enter Inbox Now',
-          onPress: () => onLoginSuccess(realCookieStr),
-        },
-      ]
-    );
   };
 
   const handleMessage = (event) => {
@@ -150,134 +152,68 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
       return;
     }
 
-    // Fallback to default sample session cookies if none intercepted
+    // Fallback to sample session cookies if none intercepted
     const defaultCookieStr = cookieObjToString(DEFAULT_SESSION_COOKIES);
     onLoginSuccess(defaultCookieStr);
   };
 
-  const handleApplyManualCookie = () => {
-    if (!manualCookieInput.trim()) {
-      Alert.alert('Error', 'Please paste cookie string into the input field.');
-      return;
-    }
-    onLoginSuccess(manualCookieInput.trim());
-  };
-
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header bar */}
+      {/* Sleek Minimal Header */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <View style={styles.titleRow}>
-            <Ionicons name="logo-tiktok" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.title}>TikTok Login</Text>
-          </View>
-          <Text style={styles.subtitle}>
-            {isLoggedInDetected ? 'Login detected' : 'Select login method below'}
-          </Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="logo-tiktok" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+          <Text style={styles.title}>TikTok Login</Text>
         </View>
 
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleForceLogout}>
-            <Ionicons name="trash-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.logoutBtnText}>Reset</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.manualBtn}
-            onPress={() => setShowManualPaste(!showManualPaste)}
-          >
-            <Ionicons name="clipboard-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.manualBtnText}>Paste Cookie</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Action bar: Extract cookies from native app */}
-      <View style={styles.extractBar}>
-        <TouchableOpacity
-          style={styles.extractBtn}
-          onPress={handleExtractFromRealApp}
-          disabled={extracting}
-        >
-          {extracting ? (
-            <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-          ) : (
-            <Ionicons name="phone-portrait-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-          )}
-          <Text style={styles.extractBtnText}>
-            {extracting ? 'Reading native app data...' : 'Extract Cookies from Native TikTok App'}
-          </Text>
+        <TouchableOpacity style={styles.resetBtn} onPress={handleForceLogout} activeOpacity={0.7}>
+          <Ionicons name="refresh-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <Text style={styles.resetBtnText}>Làm mới</Text>
         </TouchableOpacity>
       </View>
 
-      {/* WebView navigation mode tabs */}
+      {/* Slim Mode Switcher */}
       <View style={styles.modeTabs}>
         <TouchableOpacity
           style={[styles.tabBtn, currentUrl.includes('/qrcode') && styles.tabBtnActive]}
           onPress={() => navigateLoginMode('https://www.tiktok.com/login/qrcode')}
+          activeOpacity={0.7}
         >
-          <Ionicons name="qr-code-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-          <Text style={styles.tabBtnText}>QR Code</Text>
+          <Ionicons name="qr-code-outline" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
+          <Text style={styles.tabBtnText}>Mã QR</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.tabBtn, currentUrl.includes('/email') && styles.tabBtnActive]}
           onPress={() => navigateLoginMode('https://www.tiktok.com/login/phone-or-email/email')}
+          activeOpacity={0.7}
         >
-          <Ionicons name="mail-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+          <Ionicons name="mail-outline" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
           <Text style={styles.tabBtnText}>Email / Password</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.tabBtn, currentUrl === 'https://www.tiktok.com/login' && styles.tabBtnActive]}
           onPress={() => navigateLoginMode('https://www.tiktok.com/login')}
+          activeOpacity={0.7}
         >
-          <Ionicons name="globe-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-          <Text style={styles.tabBtnText}>Google / All</Text>
+          <Ionicons name="globe-outline" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
+          <Text style={styles.tabBtnText}>Google / Khác</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Manual cookie paste box */}
-      {showManualPaste && (
-        <View style={styles.pasteBox}>
-          <Text style={styles.pasteLabel}>Paste cookie string from browser or external session:</Text>
-          <TextInput
-            style={styles.pasteInput}
-            multiline
-            placeholder="sessionid=xxx; sid_tt=yyy; multi_sids=zzz..."
-            placeholderTextColor="#666"
-            value={manualCookieInput}
-            onChangeText={setManualCookieInput}
-          />
-          <View style={styles.pasteActions}>
-            <TouchableOpacity style={styles.pasteSubmit} onPress={handleApplyManualCookie}>
-              <Ionicons name="checkmark-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.pasteSubmitText}>Apply This Cookie</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.pasteQuick}
-              onPress={() => onLoginSuccess(cookieObjToString(DEFAULT_SESSION_COOKIES))}
-            >
-              <Ionicons name="flash-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.pasteQuickText}>Sample Cookie</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       {/* Login detected banner */}
       {isLoggedInDetected && (
-        <TouchableOpacity style={styles.successBanner} onPress={handleEnterInbox}>
-          <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+        <TouchableOpacity style={styles.successBanner} onPress={handleEnterInbox} activeOpacity={0.8}>
+          <Ionicons name="checkmark-circle-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.successBannerText}>
-            LOGIN DETECTED! TAP HERE TO ENTER INBOX
+            ĐÃ NHẬN DIỆN ĐĂNG NHẬP! BẤM VÀO ĐÂY ĐỂ VÀO HỘP THƯ
           </Text>
-          <Ionicons name="arrow-forward-outline" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          <Ionicons name="arrow-forward-outline" size={15} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
       )}
 
-      {/* Incognito WebView container */}
+      {/* Main WebView Container */}
       <View style={styles.webContainer}>
         <WebView
           key={`webview_session_${webViewKey}`}
@@ -298,18 +234,27 @@ export default function LoginWebViewScreen({ onLoginSuccess, isFreshLogout = fal
 
         {loading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.loadingText}>Loading TikTok login page...</Text>
+            <ActivityIndicator size="large" color="#FE2C55" />
+            <Text style={styles.loadingText}>Đang tải trang TikTok QR...</Text>
           </View>
         )}
       </View>
 
-      {/* Bottom confirmation bar */}
+      {/* Ultra-compact Bottom Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.enterBtn} onPress={handleEnterInbox}>
-          <Ionicons name="chatbubbles-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+        <TouchableOpacity
+          style={[styles.enterBtn, isLoggedInDetected && styles.enterBtnDetected]}
+          onPress={handleEnterInbox}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={isLoggedInDetected ? 'checkmark-circle' : 'chatbubbles-outline'}
+            size={16}
+            color="#FFFFFF"
+            style={{ marginRight: 6 }}
+          />
           <Text style={styles.enterBtnText}>
-            {isLoggedInDetected ? 'CONFIRM AND ENTER INBOX' : 'ENTER INBOX'}
+            {isLoggedInDetected ? 'ĐÃ ĐĂNG NHẬP - VÀO HỘP THƯ' : 'VÀO HỘP THƯ (ENTER INBOX)'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -323,160 +268,65 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F0F12',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#16171B',
     borderBottomWidth: 1,
     borderBottomColor: '#222329',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    height: 42,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   title: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  subtitle: {
-    fontSize: 12,
-    color: '#8A8B91',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoutBtn: {
+  resetBtn: {
     backgroundColor: '#DC2626',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
-  logoutBtnText: {
+  resetBtnText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 12,
-  },
-  manualBtn: {
-    backgroundColor: '#262830',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  manualBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  extractBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#1B1C22',
-    borderBottomWidth: 1,
-    borderBottomColor: '#262830',
-  },
-  extractBtn: {
-    backgroundColor: '#2A2C35',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#373943',
-  },
-  extractBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 13,
+    fontSize: 11,
   },
   modeTabs: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#16171B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#111216',
     borderBottomWidth: 1,
     borderBottomColor: '#222329',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 38,
   },
   tabBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    marginHorizontal: 3,
     borderRadius: 6,
-    backgroundColor: '#262830',
+    backgroundColor: '#1F2026',
   },
   tabBtnActive: {
     backgroundColor: '#FE2C55',
   },
   tabBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pasteBox: {
-    backgroundColor: '#16171B',
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#262830',
-  },
-  pasteLabel: {
-    color: '#E5E7EB',
-    fontSize: 12,
-    marginBottom: 6,
-    fontWeight: '600',
-  },
-  pasteInput: {
-    backgroundColor: '#0F0F12',
-    borderRadius: 6,
-    color: '#FFFFFF',
-    padding: 10,
-    fontSize: 12,
-    height: 55,
-    borderWidth: 1,
-    borderColor: '#262830',
-    textAlignVertical: 'top',
-  },
-  pasteActions: {
-    flexDirection: 'row',
-    marginTop: 10,
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  pasteSubmit: {
-    backgroundColor: '#FE2C55',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  pasteSubmitText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pasteQuick: {
-    backgroundColor: '#374151',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  pasteQuickText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   successBanner: {
@@ -484,13 +334,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   successBannerText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 11,
   },
   webContainer: {
     flex: 1,
@@ -508,27 +358,30 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: '#8A8B91',
-    marginTop: 12,
-    fontSize: 13,
+    marginTop: 10,
+    fontSize: 12,
   },
   bottomBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: '#16171B',
     borderTopWidth: 1,
     borderTopColor: '#222329',
   },
   enterBtn: {
-    backgroundColor: '#FE2C55',
+    backgroundColor: '#374151',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 13,
+    paddingVertical: 9,
     borderRadius: 8,
+  },
+  enterBtnDetected: {
+    backgroundColor: '#059669',
   },
   enterBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
   },
 });
