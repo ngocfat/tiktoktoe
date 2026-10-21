@@ -645,8 +645,60 @@ export async function sendTiktokMessage(
   const baseQueryUrl = 'https://im-api-sg.tiktok.com/v1/message/send?aid=1988&device_platform=web_pc';
   const signedUrl = appendXBogusToUrl(baseQueryUrl, userAgent);
 
+  const isVideoObject = typeof text === 'object' && text !== null && (text.id || text.itemId);
+  const videoUrlMatch = typeof text === 'string' ? text.match(/tiktok\.com\/@([^/]+)\/video\/(\d+)/) : null;
+
+  let msgType = 7;
+  let jsonContent = '';
+  let logSummary = '';
+
+  if (isVideoObject) {
+    msgType = 8;
+    const coverUrl = text.cover || text.coverUrl || '';
+    const videoPayload = {
+      aweType: 800,
+      uid: String(text.authorUid || text.uid || ''),
+      itemId: String(text.id || text.itemId || ''),
+      cover_url: {
+        url_list: coverUrl ? [coverUrl] : [],
+      },
+      content_name: text.authorNickname || text.authorUniqueId || text.author || '',
+      content_title: text.desc || text.title || 'TikTok Video',
+      cover_width: Number(text.coverWidth || 1080),
+      cover_height: Number(text.coverHeight || 1920),
+    };
+    jsonContent = JSON.stringify(videoPayload);
+    logSummary = `[Video Card] ${videoPayload.content_title} (ID: ${videoPayload.itemId})`;
+  } else if (videoUrlMatch) {
+    msgType = 8;
+    const authorHandle = videoUrlMatch[1];
+    const itemId = videoUrlMatch[2];
+    const videoPayload = {
+      aweType: 800,
+      uid: '',
+      itemId: String(itemId),
+      cover_url: {
+        url_list: [],
+      },
+      content_name: authorHandle,
+      content_title: 'TikTok Video',
+      cover_width: 1080,
+      cover_height: 1920,
+    };
+    jsonContent = JSON.stringify(videoPayload);
+    logSummary = `[Video Card] @${authorHandle} (ID: ${itemId})`;
+  } else {
+    msgType = 7;
+    const textStr = String(text ?? '');
+    jsonContent = JSON.stringify({
+      text: textStr,
+      aweType: 0,
+    });
+    logSummary = textStr.slice(0, 30);
+  }
+
   const newUuid = generateUUID();
-  debugLogger.addLog('TIKTOK_API', 'info', `Preparing message: "${text.slice(0, 30)}..." to CID: ${conversationId}`);
+  debugLogger.addLog('TIKTOK_API', 'info', `Preparing message: "${logSummary}..." to CID: ${conversationId}`);
 
   // Resolve conversation_short_id (Tag 3 in block 100)
   // For group chats (convType = 2), conversation_short_id must be 64-bit BigInt of group ID
@@ -676,15 +728,12 @@ export async function sendTiktokMessage(
         '1': conversationId,
         '2': Number(conversationType || 1),
         '3': shortIdNum,
-        '4': JSON.stringify({
-          text: text,
-          aweType: 0,
-        }),
+        '4': jsonContent,
         '5': [
           { '1': 'a:msg_req_type', '2': '1' },
           { '1': 'a:process_id', '2': generateUUID() },
         ],
-        '6': 7,
+        '6': msgType,
         '8': newUuid,
       },
     },
@@ -817,4 +866,26 @@ export async function sendTiktokMessage(
     xBogus: signedUrl.includes('X-Bogus=') ? signedUrl.split('X-Bogus=')[1] : '',
     rawResponse: decoded,
   };
+}
+
+/**
+ * 4. Helper to send a native TikTok video share card (MsgType 8)
+ * Accepts videoItem object from tiktokSearchService
+ */
+export async function sendTiktokVideoShare(
+  cookieStr,
+  conversationId,
+  videoItem,
+  conversationType = 1,
+  conversationShortId = '',
+  deviceId = '7648200104730822164'
+) {
+  return sendTiktokMessage(
+    cookieStr,
+    conversationId,
+    videoItem,
+    conversationType,
+    conversationShortId,
+    deviceId
+  );
 }

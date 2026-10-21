@@ -280,10 +280,10 @@ class ScheduleWorkerManager {
             task.conversationId
           );
           if (video && video.url) {
-            contentToSend = video.url;
+            contentToSend = video;
             task.sentVideoUrl = video.url;
             task.sentVideoTitle = video.desc || '';
-            task.messageText = video.url;
+            task.messageText = video.desc || video.url;
           }
         } catch (vidErr) {
           console.warn('[ScheduleWorker] Error searching random video:', vidErr);

@@ -128,14 +128,14 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           return;
         }
 
-        addLog(`Đang gửi 1 video: "${vid.desc?.slice(0, 35) || 'Video TikTok'}" (${vid.url})...`, 'info');
+        addLog(`Đang gửi 1 video: "${vid.desc?.slice(0, 35) || 'Video TikTok'}" (@${vid.authorUniqueId || 'creator'})...`, 'info');
         const convType = conversation.conversationType || 1;
         const shortId =
           conversation.conversationShortId || (conversation.isGroup ? conversation.conversationId : '');
         const res = await sendTiktokMessage(
           cookieStr,
           conversation.conversationId,
-          vid.url,
+          vid,
           convType,
           shortId
         );
@@ -206,7 +206,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
       return;
     }
     setIsSendingSingleVideo(true);
-    addLog(`Đang gửi video mẫu: "${previewVideoData.desc?.slice(0, 30) || 'Video'}" (${previewVideoData.url})...`, 'info');
+    addLog(`Đang gửi video mẫu: "${previewVideoData.desc?.slice(0, 30) || 'Video'}" (@${previewVideoData.authorUniqueId || 'creator'})...`, 'info');
     try {
       const convType = conversation.conversationType || 1;
       const shortId =
@@ -214,7 +214,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
       const res = await sendTiktokMessage(
         cookieStr,
         conversation.conversationId,
-        previewVideoData.url,
+        previewVideoData,
         convType,
         shortId
       );
@@ -252,13 +252,15 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
         break;
       }
 
-      let currentText = '';
+      let contentToSend = '';
+      let logPreview = '';
       if (isVideo) {
         const kw = (videoKeyword || 'Usagi').trim();
         try {
           const vid = await getRandomVideoByKeyword(kw, cookieStr, conversation.conversationId);
           if (vid && vid.url) {
-            currentText = vid.url;
+            contentToSend = vid;
+            logPreview = `Video: "${vid.desc?.slice(0, 30) || 'TikTok'}" (@${vid.authorUniqueId || 'creator'})`;
             addLog(`[${i}/${count}] Chọn video: "${vid.desc?.slice(0, 30) || 'TikTok'}" (@${vid.authorUniqueId || 'creator'})`, 'info');
           } else {
             addLog(`[${i}/${count}] Không tìm thấy video mới, thử lại lượt sau...`, 'warning');
@@ -269,12 +271,14 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           continue;
         }
       } else {
-        currentText = messageTemplate.trim();
+        let textToSend = messageTemplate.trim();
         const shouldAppend = !unlockedMode || appendCounter;
         if (shouldAppend) {
           const randId = Math.floor(100 + Math.random() * 900);
-          currentText = `${currentText} (#${i} - ${randId})`;
+          textToSend = `${textToSend} (#${i} - ${randId})`;
         }
+        contentToSend = textToSend;
+        logPreview = textToSend;
       }
 
       setProgress({
@@ -284,7 +288,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
         failed: failedCount,
       });
 
-      addLog(`[${i}/${count}] Đang gửi: "${currentText}"`, 'info');
+      addLog(`[${i}/${count}] Đang gửi: "${logPreview}"`, 'info');
 
       try {
         const convType = conversation.conversationType || 1;
@@ -293,7 +297,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
         const res = await sendTiktokMessage(
           cookieStr,
           conversation.conversationId,
-          currentText,
+          contentToSend,
           convType,
           shortId
         );
