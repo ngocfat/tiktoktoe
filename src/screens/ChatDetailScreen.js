@@ -18,7 +18,11 @@ import { sendTiktokMessage } from '../services/tiktokApi';
 import { scheduleWorker } from '../services/scheduleWorker';
 import { useTheme } from '../constants/ThemeContext';
 import { generateStreakMessageWithGemini } from '../services/geminiService';
-import { previewSearchVideo, TIKTOK_EXPLORE_CATEGORIES } from '../services/tiktokSearchService';
+import {
+  previewSearchVideo,
+  getRandomVideoByKeyword,
+  TIKTOK_EXPLORE_CATEGORIES,
+} from '../services/tiktokSearchService';
 
 export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -30,6 +34,8 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const [unlockedMode, setUnlockedMode] = useState(false);
 
   // --- AUTO SEND CONFIGURATION ---
+  const [autoContentType, setAutoContentType] = useState('TEXT'); // 'TEXT' | 'VIDEO'
+  const [isSendingSingleVideo, setIsSendingSingleVideo] = useState(false);
   const [messageTemplate, setMessageTemplate] = useState('Chào bạn, đây là tin nhắn tự động test!');
   const [totalCount, setTotalCount] = useState('5');
   const [delaySeconds, setDelaySeconds] = useState('5');
@@ -45,7 +51,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const defaultMin = String((now.getMinutes() + 5) % 60).padStart(2, '0');
 
   const [scheduleContentType, setScheduleContentType] = useState('TEXT'); // 'TEXT' | 'VIDEO'
-  const [videoKeyword, setVideoKeyword] = useState('hai huoc');
+  const [videoKeyword, setVideoKeyword] = useState('Usagi');
   const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
   const [previewVideoData, setPreviewVideoData] = useState(null);
 
@@ -107,8 +113,49 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
 
   const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  // Send a single test message
+  // Send a single test message or video
   const handleSendSingle = async () => {
+    if (autoContentType === 'VIDEO') {
+      const kw = (videoKeyword || 'Usagi').trim();
+      addLog(`Đang tìm kiếm video theo từ khóa "${kw}" để gửi...`, 'info');
+      setIsSendingSingleVideo(true);
+
+      try {
+        const vid = await getRandomVideoByKeyword(kw, cookieStr, conversation.conversationId);
+        if (!vid || !vid.url) {
+          Alert.alert('Thông báo', 'Không tìm thấy video phù hợp. Vui lòng thử từ khóa khác!');
+          addLog('Không tìm thấy video phù hợp.', 'warning');
+          return;
+        }
+
+        addLog(`Đang gửi 1 video: "${vid.desc?.slice(0, 35) || 'Video TikTok'}" (${vid.url})...`, 'info');
+        const convType = conversation.conversationType || 1;
+        const shortId =
+          conversation.conversationShortId || (conversation.isGroup ? conversation.conversationId : '');
+        const res = await sendTiktokMessage(
+          cookieStr,
+          conversation.conversationId,
+          vid.url,
+          convType,
+          shortId
+        );
+
+        if (res.success) {
+          addLog(`Gửi 1 video thành công! (Server ID: ${res.serverMsgId || 'OK'})`, 'success');
+          Alert.alert('Thành công', `Đã gửi 1 video theo từ khóa "${kw}" tới cuộc trò chuyện!`);
+        } else {
+          addLog(`Gửi video thất bại: ${res.statusText || 'Lỗi không xác định'}`, 'error');
+          Alert.alert('Thất bại', `Không thể gửi video: ${res.statusText || 'Lỗi không xác định'}`);
+        }
+      } catch (err) {
+        addLog(`Lỗi ngoại lệ khi gửi video: ${err.message}`, 'error');
+        Alert.alert('Lỗi', `Lỗi khi gửi video: ${err.message}`);
+      } finally {
+        setIsSendingSingleVideo(false);
+      }
+      return;
+    }
+
     if (!messageTemplate.trim()) {
       Alert.alert('Cảnh báo', 'Vui lòng nhập nội dung tin nhắn!');
       return;
@@ -152,12 +199,49 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     }
   };
 
+  // Send the currently previewed video right away
+  const handleSendPreviewVideoNow = async () => {
+    if (!previewVideoData || !previewVideoData.url) {
+      Alert.alert('Thông báo', 'Vui lòng bấm kiểm tra video mẫu trước khi gửi!');
+      return;
+    }
+    setIsSendingSingleVideo(true);
+    addLog(`Đang gửi video mẫu: "${previewVideoData.desc?.slice(0, 30) || 'Video'}" (${previewVideoData.url})...`, 'info');
+    try {
+      const convType = conversation.conversationType || 1;
+      const shortId =
+        conversation.conversationShortId || (conversation.isGroup ? conversation.conversationId : '');
+      const res = await sendTiktokMessage(
+        cookieStr,
+        conversation.conversationId,
+        previewVideoData.url,
+        convType,
+        shortId
+      );
+
+      if (res.success) {
+        addLog(`Gửi 1 video mẫu thành công! (Server ID: ${res.serverMsgId || 'OK'})`, 'success');
+        Alert.alert('Thành công', 'Đã gửi 1 video mẫu thành công qua tin nhắn!');
+      } else {
+        addLog(`Gửi video thất bại: ${res.statusText || 'Lỗi không xác định'}`, 'error');
+        Alert.alert('Thất bại', `Không thể gửi video: ${res.statusText || 'Lỗi không xác định'}`);
+      }
+    } catch (err) {
+      addLog(`Lỗi ngoại lệ: ${err.message}`, 'error');
+      Alert.alert('Lỗi', `Lỗi khi gửi video: ${err.message}`);
+    } finally {
+      setIsSendingSingleVideo(false);
+    }
+  };
+
   // Execute auto send loop
   const doExecuteAutoSend = async (count, delay) => {
     isStopRequested.current = false;
     setIsRunning(true);
     setProgress({ current: 0, total: count, success: 0, failed: 0 });
-    addLog(`Bắt đầu gửi tự động ${count} tin (Delay: ${delay}s)...`, 'info');
+    const isVideo = autoContentType === 'VIDEO';
+    const typeLabel = isVideo ? 'video ngẫu nhiên' : 'tin nhắn';
+    addLog(`Bắt đầu gửi tự động ${count} ${typeLabel} (Delay: ${delay}s)...`, 'info');
 
     let successCount = 0;
     let failedCount = 0;
@@ -168,11 +252,29 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
         break;
       }
 
-      let currentText = messageTemplate.trim();
-      const shouldAppend = !unlockedMode || appendCounter;
-      if (shouldAppend) {
-        const randId = Math.floor(100 + Math.random() * 900);
-        currentText = `${currentText} (#${i} - ${randId})`;
+      let currentText = '';
+      if (isVideo) {
+        const kw = (videoKeyword || 'Usagi').trim();
+        try {
+          const vid = await getRandomVideoByKeyword(kw, cookieStr, conversation.conversationId);
+          if (vid && vid.url) {
+            currentText = vid.url;
+            addLog(`[${i}/${count}] Chọn video: "${vid.desc?.slice(0, 30) || 'TikTok'}" (@${vid.authorUniqueId || 'creator'})`, 'info');
+          } else {
+            addLog(`[${i}/${count}] Không tìm thấy video mới, thử lại lượt sau...`, 'warning');
+            continue;
+          }
+        } catch (vidErr) {
+          addLog(`[${i}/${count}] Lỗi tìm video: ${vidErr.message}`, 'error');
+          continue;
+        }
+      } else {
+        currentText = messageTemplate.trim();
+        const shouldAppend = !unlockedMode || appendCounter;
+        if (shouldAppend) {
+          const randId = Math.floor(100 + Math.random() * 900);
+          currentText = `${currentText} (#${i} - ${randId})`;
+        }
       }
 
       setProgress({
@@ -253,8 +355,13 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
       return;
     }
 
-    if (!messageTemplate.trim()) {
+    if (autoContentType === 'TEXT' && !messageTemplate.trim()) {
       Alert.alert('Lỗi', 'Vui lòng nhập nội dung tin nhắn!');
+      return;
+    }
+
+    if (autoContentType === 'VIDEO' && !videoKeyword.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập từ khóa video!');
       return;
     }
 
@@ -588,43 +695,198 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
               </Text>
             </View>
 
-            <View style={styles.labelWithAiRow}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Nội dung tin nhắn:</Text>
+            {/* Content type segment selector */}
+            <View style={[styles.contentTypeSegmentRow, { backgroundColor: theme.surface }]}>
               <TouchableOpacity
                 style={[
-                  styles.aiSuggestBtn,
-                  { backgroundColor: theme.surface },
+                  styles.contentTypeSegmentBtn,
+                  autoContentType === 'TEXT' && { backgroundColor: theme.tiktokRed },
                 ]}
-                onPress={handleGenerateAiForAuto}
-                disabled={isGeneratingAiAuto || isRunning}
+                onPress={() => setAutoContentType('TEXT')}
                 activeOpacity={0.7}
               >
-                {isGeneratingAiAuto ? (
-                  <ActivityIndicator size="small" color={theme.tiktokRed} />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles" size={12} color={theme.tiktokRed} style={{ marginRight: 4 }} />
-                    <Text style={[styles.aiSuggestBtnText, { color: theme.tiktokRed }]}>Gemini AI gợi ý</Text>
-                  </>
-                )}
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={14}
+                  color={autoContentType === 'TEXT' ? '#FFFFFF' : theme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.contentTypeSegmentText,
+                    { color: autoContentType === 'TEXT' ? '#FFFFFF' : theme.textSecondary },
+                  ]}
+                >
+                  Tin Nhắn Văn Bản
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.contentTypeSegmentBtn,
+                  autoContentType === 'VIDEO' && { backgroundColor: theme.tiktokRed },
+                ]}
+                onPress={() => setAutoContentType('VIDEO')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="videocam-outline"
+                  size={14}
+                  color={autoContentType === 'VIDEO' ? '#FFFFFF' : theme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.contentTypeSegmentText,
+                    { color: autoContentType === 'VIDEO' ? '#FFFFFF' : theme.textSecondary },
+                  ]}
+                >
+                  Video Ngẫu Nhiên
+                </Text>
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={[
-                styles.textArea,
-                {
-                  backgroundColor: theme.inputBg,
-                  color: theme.textPrimary,
-                },
-              ]}
-              multiline
-              numberOfLines={3}
-              value={messageTemplate}
-              onChangeText={setMessageTemplate}
-              placeholder="Nhập nội dung tin nhắn gửi tự động..."
-              placeholderTextColor={theme.textMuted}
-              editable={!isRunning}
-            />
+
+            {autoContentType === 'TEXT' ? (
+              <>
+                <View style={styles.labelWithAiRow}>
+                  <Text style={[styles.label, { color: theme.textSecondary }]}>Nội dung tin nhắn:</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.aiSuggestBtn,
+                      { backgroundColor: theme.surface },
+                    ]}
+                    onPress={handleGenerateAiForAuto}
+                    disabled={isGeneratingAiAuto || isRunning}
+                    activeOpacity={0.7}
+                  >
+                    {isGeneratingAiAuto ? (
+                      <ActivityIndicator size="small" color={theme.tiktokRed} />
+                    ) : (
+                      <>
+                        <Ionicons name="sparkles" size={12} color={theme.tiktokRed} style={{ marginRight: 4 }} />
+                        <Text style={[styles.aiSuggestBtnText, { color: theme.tiktokRed }]}>Gemini AI gợi ý</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[
+                    styles.textArea,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  multiline
+                  numberOfLines={3}
+                  value={messageTemplate}
+                  onChangeText={setMessageTemplate}
+                  placeholder="Nhập nội dung tin nhắn gửi tự động..."
+                  placeholderTextColor={theme.textMuted}
+                  editable={!isRunning}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.label, { color: theme.textSecondary }]}>
+                  Từ khóa tìm kiếm video (Keyword):
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  value={videoKeyword}
+                  onChangeText={setVideoKeyword}
+                  placeholder="Nhập từ khóa bất kỳ (VD: Usagi, mèo béo, xe độ, anime...)"
+                  placeholderTextColor={theme.textMuted}
+                  editable={!isRunning}
+                />
+
+                <Text style={[styles.label, { color: theme.textMuted, fontSize: 11, marginTop: 8 }]}>
+                  Gợi ý từ khóa mẫu (bấm để điền nhanh nếu muốn):
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.keywordChipsScroll}>
+                  {[
+                    'Usagi',
+                    'Mèo béo',
+                    'Hài hước',
+                    'Anime',
+                    'Gaming',
+                    'Nấu ăn',
+                    'Xe độ',
+                    'Công nghệ',
+                    'Nhạc chill',
+                  ].map((kw) => {
+                    const isSelected = videoKeyword.toLowerCase() === kw.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={kw}
+                        style={[
+                          styles.keywordChip,
+                          {
+                            backgroundColor: isSelected ? theme.tiktokRed : theme.surface,
+                            borderColor: isSelected ? theme.tiktokRed : theme.divider,
+                          },
+                        ]}
+                        onPress={() => setVideoKeyword(kw)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.keywordChipText,
+                            { color: isSelected ? '#FFFFFF' : theme.textPrimary },
+                          ]}
+                        >
+                          {kw}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Test preview video button */}
+                <TouchableOpacity
+                  style={[styles.testPreviewBtn, { backgroundColor: theme.surface }]}
+                  onPress={handleTestPreviewVideo}
+                  disabled={isPreviewingVideo || isRunning}
+                  activeOpacity={0.7}
+                >
+                  {isPreviewingVideo ? (
+                    <ActivityIndicator size="small" color={theme.tiktokRed} />
+                  ) : (
+                    <>
+                      <Ionicons name="search" size={14} color={theme.tiktokRed} />
+                      <Text style={[styles.testPreviewBtnText, { color: theme.tiktokRed }]}>
+                        Kiểm tra video mẫu theo từ khóa
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {previewVideoData && (
+                  <View
+                    style={[
+                      styles.previewVideoCard,
+                      { backgroundColor: theme.surface, borderColor: theme.divider },
+                    ]}
+                  >
+                    <Text style={[styles.previewVideoTitle, { color: theme.textPrimary }]} numberOfLines={2}>
+                      {previewVideoData.desc || 'Video TikTok'}
+                    </Text>
+                    <Text style={[styles.previewVideoAuthor, { color: theme.textSecondary }]}>
+                      Kênh: {previewVideoData.authorNickname || 'TikTok Creator'} (@{previewVideoData.authorUniqueId})
+                    </Text>
+                    <Text style={[styles.previewVideoUrl, { color: theme.tiktokRed }]} numberOfLines={1}>
+                      {previewVideoData.url}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
 
             <View style={styles.inputGrid}>
               <View style={styles.gridCol}>
@@ -725,11 +987,22 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                   { backgroundColor: theme.surface },
                 ]}
                 onPress={handleSendSingle}
-                disabled={isRunning}
+                disabled={isRunning || isSendingSingleVideo}
                 activeOpacity={0.7}
               >
-                <Ionicons name="paper-plane-outline" size={16} color={theme.textPrimary} style={{ marginRight: 6 }} />
-                <Text style={[styles.btnSingleText, { color: theme.textPrimary }]}>Gửi Thử 1 Tin</Text>
+                {isSendingSingleVideo ? (
+                  <ActivityIndicator size="small" color={theme.textPrimary} style={{ marginRight: 6 }} />
+                ) : (
+                  <Ionicons
+                    name={autoContentType === 'VIDEO' ? 'videocam-outline' : 'paper-plane-outline'}
+                    size={16}
+                    color={theme.textPrimary}
+                    style={{ marginRight: 6 }}
+                  />
+                )}
+                <Text style={[styles.btnSingleText, { color: theme.textPrimary }]}>
+                  {autoContentType === 'VIDEO' ? 'Gửi Thử 1 Video' : 'Gửi Thử 1 Tin'}
+                </Text>
               </TouchableOpacity>
 
               {!isRunning ? (
@@ -739,7 +1012,9 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                   activeOpacity={0.8}
                 >
                   <Ionicons name="play" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.btnStartText}>Bắt Đầu Gửi Tự Động</Text>
+                  <Text style={styles.btnStartText}>
+                    {autoContentType === 'VIDEO' ? 'Bắt Đầu Gửi Video' : 'Bắt Đầu Gửi Tự Động'}
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -935,22 +1210,38 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                 </TouchableOpacity>
 
                 {previewVideoData && (
-                  <View
-                    style={[
-                      styles.previewVideoCard,
-                      { backgroundColor: theme.surface, borderColor: theme.divider },
-                    ]}
-                  >
-                    <Text style={[styles.previewVideoTitle, { color: theme.textPrimary }]} numberOfLines={2}>
-                      {previewVideoData.desc || 'Video TikTok'}
-                    </Text>
-                    <Text style={[styles.previewVideoAuthor, { color: theme.textSecondary }]}>
-                      Kênh: {previewVideoData.authorNickname || 'TikTok Creator'} (@{previewVideoData.authorUniqueId})
-                    </Text>
-                    <Text style={[styles.previewVideoUrl, { color: theme.tiktokRed }]} numberOfLines={1}>
-                      {previewVideoData.url}
-                    </Text>
-                  </View>
+                  <>
+                    <View
+                      style={[
+                        styles.previewVideoCard,
+                        { backgroundColor: theme.surface, borderColor: theme.divider },
+                      ]}
+                    >
+                      <Text style={[styles.previewVideoTitle, { color: theme.textPrimary }]} numberOfLines={2}>
+                        {previewVideoData.desc || 'Video TikTok'}
+                      </Text>
+                      <Text style={[styles.previewVideoAuthor, { color: theme.textSecondary }]}>
+                        Kênh: {previewVideoData.authorNickname || 'TikTok Creator'} (@{previewVideoData.authorUniqueId})
+                      </Text>
+                      <Text style={[styles.previewVideoUrl, { color: theme.tiktokRed }]} numberOfLines={1}>
+                        {previewVideoData.url}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.sendPreviewNowBtn, { backgroundColor: theme.tiktokRed }]}
+                      onPress={handleSendPreviewVideoNow}
+                      disabled={isSendingSingleVideo}
+                      activeOpacity={0.7}
+                    >
+                      {isSendingSingleVideo ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 6 }} />
+                      ) : (
+                        <Ionicons name="paper-plane" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      )}
+                      <Text style={styles.sendPreviewNowBtnText}>Gửi Ngay 1 Video Này</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
 
                 <View style={[styles.keywordNoticeBox, { backgroundColor: theme.surface }]}>
@@ -1728,5 +2019,18 @@ const styles = StyleSheet.create({
   keywordNoticeText: {
     fontSize: 11,
     lineHeight: 16,
+  },
+  sendPreviewNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  sendPreviewNowBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
 });
