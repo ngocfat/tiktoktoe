@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendTiktokMessage } from './tiktokApi.js';
 import { generateStreakMessageWithGemini } from './geminiService.js';
 import { nativeBackgroundService } from './nativeBackgroundService.js';
+import { getRandomVideoByKeyword } from './tiktokSearchService.js';
 
 const STORAGE_KEY = 'TIKTOK_SCHEDULE_TASKS_V1';
 const BG_PREF_KEY = 'TIKTOK_BACKGROUND_SERVICE_ENABLED_V1';
@@ -269,7 +270,25 @@ class ScheduleWorkerManager {
       this.notify();
 
       let contentToSend = task.messageText;
-      if (task.useAiDaily) {
+
+      // Handle Random Video Mode by Keyword
+      if (task.sendVideoMode) {
+        try {
+          const video = await getRandomVideoByKeyword(
+            task.videoKeyword || 'hai huoc',
+            task.cookieStr,
+            task.conversationId
+          );
+          if (video && video.url) {
+            contentToSend = video.url;
+            task.sentVideoUrl = video.url;
+            task.sentVideoTitle = video.desc || '';
+            task.messageText = video.url;
+          }
+        } catch (vidErr) {
+          console.warn('[ScheduleWorker] Error searching random video:', vidErr);
+        }
+      } else if (task.useAiDaily) {
         try {
           const aiRes = await generateStreakMessageWithGemini(null, null, task.targetNickname);
           if (aiRes && aiRes.text) {

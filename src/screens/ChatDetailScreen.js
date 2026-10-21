@@ -18,6 +18,7 @@ import { sendTiktokMessage } from '../services/tiktokApi';
 import { scheduleWorker } from '../services/scheduleWorker';
 import { useTheme } from '../constants/ThemeContext';
 import { generateStreakMessageWithGemini } from '../services/geminiService';
+import { previewSearchVideo, TIKTOK_EXPLORE_CATEGORIES } from '../services/tiktokSearchService';
 
 export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -42,6 +43,11 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const now = new Date();
   const defaultHour = String((now.getHours() + (now.getMinutes() >= 55 ? 1 : 0)) % 24).padStart(2, '0');
   const defaultMin = String((now.getMinutes() + 5) % 60).padStart(2, '0');
+
+  const [scheduleContentType, setScheduleContentType] = useState('TEXT'); // 'TEXT' | 'VIDEO'
+  const [videoKeyword, setVideoKeyword] = useState('hai huoc');
+  const [isPreviewingVideo, setIsPreviewingVideo] = useState(false);
+  const [previewVideoData, setPreviewVideoData] = useState(null);
 
   const [scheduleMsg, setScheduleMsg] = useState('Chào bạn, đây là tin nhắn hẹn giờ tự động!');
   const [targetHour, setTargetHour] = useState(defaultHour);
@@ -328,6 +334,25 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   };
 
   // --- SCHEDULE WORKER ACTIONS ---
+  const handleTestPreviewVideo = async () => {
+    if (isPreviewingVideo) return;
+    const kw = videoKeyword.trim() || 'hai huoc';
+    setIsPreviewingVideo(true);
+    setPreviewVideoData(null);
+    try {
+      const vid = await previewSearchVideo(kw, cookieStr);
+      if (vid && vid.url) {
+        setPreviewVideoData(vid);
+      } else {
+        Alert.alert('Thong bao', 'Khong tim thay video mau phu hop. Vui long thu tu khoa khac!');
+      }
+    } catch (err) {
+      Alert.alert('Loi', `Khong the tim kiem video: ${err.message}`);
+    } finally {
+      setIsPreviewingVideo(false);
+    }
+  };
+
   const applyQuickTimePreset = (minutesToAdd) => {
     const future = new Date(Date.now() + minutesToAdd * 60 * 1000);
     setTargetHour(String(future.getHours()).padStart(2, '0'));
@@ -337,8 +362,16 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
   const handleCreateSchedule = () => {
     if (isScheduling) return;
 
-    if (!scheduleMsg.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập nội dung tin nhắn cần hẹn giờ!');
+    const isVideo = scheduleContentType === 'VIDEO';
+    const finalKeyword = videoKeyword.trim() || 'hai huoc';
+
+    if (!isVideo && !scheduleMsg.trim()) {
+      Alert.alert('Loi', 'Vui long nhap noi dung tin nhan can hen gio!');
+      return;
+    }
+
+    if (isVideo && !videoKeyword.trim()) {
+      Alert.alert('Loi', 'Vui long nhap hoac chon tu khoa video can tim kiem!');
       return;
     }
 
@@ -346,7 +379,7 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
     const m = parseInt(targetMinute, 10);
 
     if (isNaN(h) || h < 0 || h > 23 || isNaN(m) || m < 0 || m > 59) {
-      Alert.alert('Lỗi', 'Giờ hẹn không hợp lệ (Giờ: 0-23, Phút: 0-59)!');
+      Alert.alert('Loi', 'Gio hen khong hop le (Gio: 0-23, Phut: 0-59)!');
       return;
     }
 
@@ -369,17 +402,21 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
       conversationShortId: shortId,
       targetNickname: conversation.nickname,
       targetAvatar: conversation.avatar,
-      messageText: scheduleMsg.trim(),
+      messageText: isVideo ? `[VIDEO: ${finalKeyword}]` : scheduleMsg.trim(),
+      sendVideoMode: isVideo,
+      videoKeyword: isVideo ? finalKeyword : '',
       scheduledTime: targetDate.getTime(),
       repeatDaily: repeatDaily,
-      useAiDaily: repeatDaily && useAiDaily,
+      useAiDaily: !isVideo && repeatDaily && useAiDaily,
       cookieStr: cookieStr,
     });
 
     const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     Alert.alert(
-      'Thành công',
-      `Đã lên lịch gửi tin nhắn vào lúc ${timeStr} ${targetDate.getDate()}/${targetDate.getMonth() + 1}!`
+      'Thanh cong',
+      isVideo
+        ? `Da len lich tu dong tim video "${finalKeyword}" va gui vao luc ${timeStr} ${targetDate.getDate()}/${targetDate.getMonth() + 1}!`
+        : `Da len lich gui tin nhan vao luc ${timeStr} ${targetDate.getDate()}/${targetDate.getMonth() + 1}!`
     );
 
     setTimeout(() => {
@@ -721,45 +758,204 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
           <View style={[styles.card, { backgroundColor: theme.card }]}>
             <View style={styles.cardHeaderRow}>
               <Ionicons name="alarm-outline" size={18} color={theme.tiktokRed} style={{ marginRight: 6 }} />
-              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Worker Hẹn Giờ Gửi Tin</Text>
+              <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Worker Hẹn Giờ Giữ Chuỗi</Text>
             </View>
 
-            <View style={styles.labelWithAiRow}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>Nội dung tin nhắn hẹn gửi:</Text>
+            {/* Content Type Selector: Text vs Random Video by Keyword */}
+            <View style={[styles.contentTypeSegmentRow, { backgroundColor: theme.surface }]}>
               <TouchableOpacity
                 style={[
-                  styles.aiSuggestBtn,
-                  { backgroundColor: theme.surface },
+                  styles.contentTypeSegmentBtn,
+                  scheduleContentType === 'TEXT' && { backgroundColor: theme.tiktokRed },
                 ]}
-                onPress={handleGenerateAiForSchedule}
-                disabled={isGeneratingAiSchedule}
+                onPress={() => setScheduleContentType('TEXT')}
                 activeOpacity={0.7}
               >
-                {isGeneratingAiSchedule ? (
-                  <ActivityIndicator size="small" color={theme.tiktokRed} />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles" size={12} color={theme.tiktokRed} style={{ marginRight: 4 }} />
-                    <Text style={[styles.aiSuggestBtnText, { color: theme.tiktokRed }]}>Gemini AI gợi ý</Text>
-                  </>
-                )}
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={14}
+                  color={scheduleContentType === 'TEXT' ? '#FFFFFF' : theme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.contentTypeSegmentText,
+                    { color: scheduleContentType === 'TEXT' ? '#FFFFFF' : theme.textSecondary },
+                  ]}
+                >
+                  Tin Nhắn Văn Bản
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.contentTypeSegmentBtn,
+                  scheduleContentType === 'VIDEO' && { backgroundColor: theme.tiktokRed },
+                ]}
+                onPress={() => setScheduleContentType('VIDEO')}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="videocam-outline"
+                  size={14}
+                  color={scheduleContentType === 'VIDEO' ? '#FFFFFF' : theme.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.contentTypeSegmentText,
+                    { color: scheduleContentType === 'VIDEO' ? '#FFFFFF' : theme.textSecondary },
+                  ]}
+                >
+                  Video Ngẫu Nhiên
+                </Text>
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={[
-                styles.textArea,
-                {
-                  backgroundColor: theme.inputBg,
-                  color: theme.textPrimary,
-                },
-              ]}
-              multiline
-              numberOfLines={2}
-              value={scheduleMsg}
-              onChangeText={setScheduleMsg}
-              placeholder="Nhập nội dung cần hẹn giờ gửi..."
-              placeholderTextColor={theme.textMuted}
-            />
+
+            {scheduleContentType === 'TEXT' ? (
+              <>
+                <View style={styles.labelWithAiRow}>
+                  <Text style={[styles.label, { color: theme.textSecondary }]}>Nội dung tin nhắn hẹn gửi:</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.aiSuggestBtn,
+                      { backgroundColor: theme.surface },
+                    ]}
+                    onPress={handleGenerateAiForSchedule}
+                    disabled={isGeneratingAiSchedule}
+                    activeOpacity={0.7}
+                  >
+                    {isGeneratingAiSchedule ? (
+                      <ActivityIndicator size="small" color={theme.tiktokRed} />
+                    ) : (
+                      <>
+                        <Ionicons name="sparkles" size={12} color={theme.tiktokRed} style={{ marginRight: 4 }} />
+                        <Text style={[styles.aiSuggestBtnText, { color: theme.tiktokRed }]}>Gemini AI gợi ý</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[
+                    styles.textArea,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  multiline
+                  numberOfLines={2}
+                  value={scheduleMsg}
+                  onChangeText={setScheduleMsg}
+                  placeholder="Nhập nội dung cần hẹn giờ gửi..."
+                  placeholderTextColor={theme.textMuted}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.label, { color: theme.textSecondary }]}>
+                  Chọn chủ đề hoặc nhập từ khóa (Keyword):
+                </Text>
+
+                {/* Quick keyword chips */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.keywordChipsScroll}>
+                  {[
+                    'hai huoc',
+                    'thu cung',
+                    'meme',
+                    'gaming',
+                    'am thuc',
+                    'the thao',
+                    'xe co',
+                    'cong nghe',
+                    'xu huong',
+                  ].map((kw) => {
+                    const isSelected = videoKeyword.toLowerCase() === kw.toLowerCase();
+                    return (
+                      <TouchableOpacity
+                        key={kw}
+                        style={[
+                          styles.keywordChip,
+                          {
+                            backgroundColor: isSelected ? theme.tiktokRed : theme.surface,
+                            borderColor: isSelected ? theme.tiktokRed : theme.divider,
+                          },
+                        ]}
+                        onPress={() => setVideoKeyword(kw)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.keywordChipText,
+                            { color: isSelected ? '#FFFFFF' : theme.textPrimary },
+                          ]}
+                        >
+                          {kw}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  value={videoKeyword}
+                  onChangeText={setVideoKeyword}
+                  placeholder="Nhập từ khóa (VD: haihuoc, meo, lienquan...)"
+                  placeholderTextColor={theme.textMuted}
+                />
+
+                {/* Test preview video button */}
+                <TouchableOpacity
+                  style={[styles.testPreviewBtn, { backgroundColor: theme.surface }]}
+                  onPress={handleTestPreviewVideo}
+                  disabled={isPreviewingVideo}
+                  activeOpacity={0.7}
+                >
+                  {isPreviewingVideo ? (
+                    <ActivityIndicator size="small" color={theme.tiktokRed} />
+                  ) : (
+                    <>
+                      <Ionicons name="search" size={14} color={theme.tiktokRed} />
+                      <Text style={[styles.testPreviewBtnText, { color: theme.tiktokRed }]}>
+                        Kiểm tra video mẫu theo từ khóa
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {previewVideoData && (
+                  <View
+                    style={[
+                      styles.previewVideoCard,
+                      { backgroundColor: theme.surface, borderColor: theme.divider },
+                    ]}
+                  >
+                    <Text style={[styles.previewVideoTitle, { color: theme.textPrimary }]} numberOfLines={2}>
+                      {previewVideoData.desc || 'Video TikTok'}
+                    </Text>
+                    <Text style={[styles.previewVideoAuthor, { color: theme.textSecondary }]}>
+                      Kênh: {previewVideoData.authorNickname || 'TikTok Creator'} (@{previewVideoData.authorUniqueId})
+                    </Text>
+                    <Text style={[styles.previewVideoUrl, { color: theme.tiktokRed }]} numberOfLines={1}>
+                      {previewVideoData.url}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={[styles.keywordNoticeBox, { backgroundColor: theme.surface }]}>
+                  <Text style={[styles.keywordNoticeText, { color: theme.textMuted }]}>
+                    Đúng giờ hẹn, Worker sẽ tự động quét TikTok theo từ khóa trên, lấy ngẫu nhiên 1 video mới nhất và gửi qua tin nhắn để duy trì chuỗi lửa với bạn bè.
+                  </Text>
+                </View>
+              </>
+            )}
 
             {/* Quick time presets */}
             <Text style={[styles.label, { color: theme.textSecondary, marginTop: 10 }]}>Chọn nhanh:</Text>
@@ -918,9 +1114,19 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                               <Ionicons name="flame" size={13} color="#F97316" />
                             </View>
                           ) : null}
+                          {task.sendVideoMode ? (
+                            <View style={styles.videoBadgeTag}>
+                              <Ionicons name="videocam" size={11} color="#000000" style={{ marginRight: 3 }} />
+                              <Text style={styles.videoBadgeTagText}>VIDEO: {task.videoKeyword || 'Hai huoc'}</Text>
+                            </View>
+                          ) : null}
                         </View>
                         <Text style={[styles.taskMsg, { color: theme.textSecondary }]} numberOfLines={2}>
-                          "{task.messageText}"
+                          {task.sendVideoMode
+                            ? (task.sentVideoUrl
+                                ? `Đã gửi: "${task.sentVideoTitle || 'Video'}" (${task.sentVideoUrl})`
+                                : `Tự động tìm & gửi video theo từ khóa: "${task.videoKeyword || 'Hai huoc'}"`)
+                            : `"${task.messageText}"`}
                         </Text>
                       </View>
 
@@ -1430,5 +1636,93 @@ const styles = StyleSheet.create({
   aiSuggestBtnText: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  contentTypeSegmentRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    borderRadius: 10,
+    overflow: 'hidden',
+    padding: 3,
+  },
+  contentTypeSegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  contentTypeSegmentText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  keywordChipsScroll: {
+    marginVertical: 8,
+  },
+  keywordChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginRight: 6,
+    borderWidth: 1,
+  },
+  keywordChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  testPreviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  testPreviewBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  previewVideoCard: {
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+    borderWidth: 1,
+  },
+  previewVideoTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  previewVideoAuthor: {
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  previewVideoUrl: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+  },
+  videoBadgeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  videoBadgeTagText: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  keywordNoticeBox: {
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
+  },
+  keywordNoticeText: {
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

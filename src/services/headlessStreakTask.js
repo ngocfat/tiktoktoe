@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendTiktokMessage } from './tiktokApi';
 import { generateStreakMessageWithGemini } from './geminiService';
 import { nativeBackgroundService } from './nativeBackgroundService';
+import { getRandomVideoByKeyword } from './tiktokSearchService';
 
 const STORAGE_KEY = 'TIKTOK_SCHEDULE_TASKS_V1';
 const COOKIE_STORAGE_KEY = 'TIKTOK_ACTIVE_COOKIE_V1';
@@ -94,8 +95,25 @@ export async function handleHeadlessStreakTask(taskData) {
         const effectiveCookie = savedCookie || task.cookieStr;
         let contentToSend = task.messageText;
 
-        // Generate dynamic content via Gemini AI if enabled
-        if (task.useAiDaily) {
+        // Handle Random Video Mode by Keyword
+        if (task.sendVideoMode) {
+          try {
+            const video = await getRandomVideoByKeyword(
+              task.videoKeyword || 'hai huoc',
+              effectiveCookie,
+              task.conversationId
+            );
+            if (video && video.url) {
+              contentToSend = video.url;
+              task.sentVideoUrl = video.url;
+              task.sentVideoTitle = video.desc || '';
+              task.messageText = video.url;
+            }
+          } catch (vidErr) {
+            console.warn('[HeadlessJS] Error getting random video:', vidErr);
+          }
+        } else if (task.useAiDaily) {
+          // Generate dynamic content via Gemini AI if enabled
           try {
             const aiRes = await generateStreakMessageWithGemini(null, null, task.targetNickname);
             if (aiRes && aiRes.text) {

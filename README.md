@@ -54,6 +54,12 @@ The Vibe Coding workflow with Antigravity bridges the gap between deep network p
 - **Native Dual Theme**: Dark Mode and Light Mode implementations mirroring TikTok's official design system.
 - **Developer & Diagnostic Console**: Real-time logging system with categorized subsystem tags (API, Network, Scheduler, Media Extraction) for ADB and in-app inspection.
 
+### 2.8. Keyword-Driven Video Discovery & Automated Dispatch
+- **Dynamic Content Discovery**: Automatically queries TikTok's Explore category streams using native X-Bogus signature generation (Comedy, Pets, Gaming, Food, Sports, Music, Technology, Trending).
+- **Intelligent Keyword Mapping**: Automatically parses user-configured keywords (e.g., comedy, pets, memes, esports) to targeted high-engagement video pools.
+- **Sliding-Window Deduplication**: Persists a sliding-window history of sent video identifiers per conversation in AsyncStorage to avoid repeating content.
+- **Native Chat Card Unfurling**: Dispatches canonical video links via IMSDK Protocol Buffers (Command 100), triggering TikTok's native playable video card preview in direct messages while preserving the daily streak flame.
+
 ---
 
 ## 3. Directory Structure

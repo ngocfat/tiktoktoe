@@ -5,3 +5,4 @@ export * from './tiktokDownloaderService';
 export * from './nativeBackgroundService';
 export * from './debugLoggerService';
 export * from './headlessStreakTask';
+export * from './tiktokSearchService';
