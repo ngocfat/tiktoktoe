@@ -854,7 +854,25 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
             ) : (
               <>
                 <Text style={[styles.label, { color: theme.textSecondary }]}>
-                  Chọn chủ đề hoặc nhập từ khóa (Keyword):
+                  Tự do nhập từ khóa tìm kiếm (Keyword):
+                </Text>
+
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  value={videoKeyword}
+                  onChangeText={setVideoKeyword}
+                  placeholder="Nhập từ khóa bất kỳ (VD: mèo béo, xe độ, review phim, nấu ăn...)"
+                  placeholderTextColor={theme.textMuted}
+                />
+
+                <Text style={[styles.label, { color: theme.textMuted, fontSize: 11, marginTop: 8 }]}>
+                  Gợi ý từ khóa mẫu (bấm để điền nhanh nếu muốn):
                 </Text>
 
                 {/* Quick keyword chips */}
@@ -896,20 +914,6 @@ export default function ChatDetailScreen({ conversation, cookieStr, onBack }) {
                     );
                   })}
                 </ScrollView>
-
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.inputBg,
-                      color: theme.textPrimary,
-                    },
-                  ]}
-                  value={videoKeyword}
-                  onChangeText={setVideoKeyword}
-                  placeholder="Nhập từ khóa (VD: haihuoc, meo, lienquan...)"
-                  placeholderTextColor={theme.textMuted}
-                />
 
                 {/* Test preview video button */}
                 <TouchableOpacity

@@ -257,19 +257,81 @@ async function recordSentVideoId(conversationId, videoId) {
 }
 
 /**
- * Searches and randomly selects a fresh video matching keyword
+ * Strips Vietnamese accents and normalizes search strings to lowercase
+ */
+export function stripAccents(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Filters a pool of videos based on arbitrary user-provided search keywords
+ * Performs 3-tier relevance matching: exact phrase, multi-token, and any token
+ */
+export function filterVideosByKeyword(videoList, rawKeyword) {
+  if (!rawKeyword || typeof rawKeyword !== 'string' || !Array.isArray(videoList)) {
+    return videoList || [];
+  }
+  const cleanKeyword = stripAccents(rawKeyword).trim();
+  if (!cleanKeyword) return videoList;
+
+  const tokens = cleanKeyword.split(/\s+/).filter((t) => t.length >= 2);
+
+  // 1. Exact phrase match in description or author info
+  const exactPhrase = videoList.filter((v) => {
+    const text = stripAccents(`${v.desc} ${v.authorNickname} ${v.authorUniqueId}`);
+    return text.includes(cleanKeyword);
+  });
+  if (exactPhrase.length > 0) return exactPhrase;
+
+  // 2. All tokens present in caption or author info
+  if (tokens.length > 1) {
+    const allTokens = videoList.filter((v) => {
+      const text = stripAccents(`${v.desc} ${v.authorNickname} ${v.authorUniqueId}`);
+      return tokens.every((t) => text.includes(t));
+    });
+    if (allTokens.length > 0) return allTokens;
+  }
+
+  // 3. Any token present in caption or author info
+  if (tokens.length > 0) {
+    const anyToken = videoList.filter((v) => {
+      const text = stripAccents(`${v.desc} ${v.authorNickname} ${v.authorUniqueId}`);
+      return tokens.some((t) => text.includes(t));
+    });
+    if (anyToken.length > 0) return anyToken;
+  }
+
+  // Fallback to original candidate pool if no text tokens matched
+  return videoList;
+}
+
+/**
+ * Searches and randomly selects a fresh video matching user-entered keyword
  * Automatically avoids recently sent videos in the conversation
  */
-export async function getRandomVideoByKeyword(keyword, cookieStr = '', conversationId = '') {
-  const catId = findCategoryByKeyword(keyword);
+export async function getRandomVideoByKeyword(userKeyword, cookieStr = '', conversationId = '') {
+  const catId = findCategoryByKeyword(userKeyword);
   const previouslySent = conversationId ? await getSentVideoIds(conversationId) : [];
   const sentSet = new Set(previouslySent);
 
+  // Fetch from the mapped category stream
   let videoList = await fetchExploreVideos(catId, 25, cookieStr);
 
-  // If primary category had zero items, fallback to Trending (120)
-  if (videoList.length === 0 && catId !== 120) {
-    videoList = await fetchExploreVideos(120, 25, cookieStr);
+  // If not already in Trending, merge items from Trending to broaden custom keyword search coverage
+  if (catId !== 120) {
+    const trendingList = await fetchExploreVideos(120, 20, cookieStr);
+    if (trendingList.length > 0) {
+      const existingIds = new Set(videoList.map((v) => v.id));
+      for (const t of trendingList) {
+        if (!existingIds.has(t.id)) {
+          videoList.push(t);
+        }
+      }
+    }
   }
 
   // If still zero items, use curated fallback list
@@ -277,11 +339,16 @@ export async function getRandomVideoByKeyword(keyword, cookieStr = '', conversat
     videoList = [...FALLBACK_VIDEOS];
   }
 
-  // Filter out recently sent video IDs
-  let available = videoList.filter((v) => !sentSet.has(v.id));
+  // Filter candidates matching user's specific typed keyword in title / caption / hashtags
+  const matchedList = filterVideosByKeyword(videoList, userKeyword);
+
+  // Filter out recently sent video IDs in this conversation
+  let available = matchedList.filter((v) => !sentSet.has(v.id));
   if (available.length === 0) {
-    // If all current videos were previously sent, recycle the pool
-    available = videoList;
+    available = videoList.filter((v) => !sentSet.has(v.id));
+  }
+  if (available.length === 0) {
+    available = matchedList.length > 0 ? matchedList : videoList;
   }
 
   // Pick random video from candidate list
@@ -297,19 +364,32 @@ export async function getRandomVideoByKeyword(keyword, cookieStr = '', conversat
 
 /**
  * Fast preview query for UI testing without recording to sent history
+ * Matches user's custom typed keyword in real time
  */
-export async function previewSearchVideo(keyword, cookieStr = '') {
-  const catId = findCategoryByKeyword(keyword);
-  let videoList = await fetchExploreVideos(catId, 15, cookieStr);
+export async function previewSearchVideo(userKeyword, cookieStr = '') {
+  const catId = findCategoryByKeyword(userKeyword);
+  let videoList = await fetchExploreVideos(catId, 20, cookieStr);
 
-  if (videoList.length === 0 && catId !== 120) {
-    videoList = await fetchExploreVideos(120, 15, cookieStr);
+  if (catId !== 120) {
+    const trendingList = await fetchExploreVideos(120, 15, cookieStr);
+    if (trendingList.length > 0) {
+      const existingIds = new Set(videoList.map((v) => v.id));
+      for (const t of trendingList) {
+        if (!existingIds.has(t.id)) {
+          videoList.push(t);
+        }
+      }
+    }
   }
 
   if (videoList.length === 0) {
     videoList = [...FALLBACK_VIDEOS];
   }
 
-  const randomIndex = Math.floor(Math.random() * videoList.length);
-  return videoList[randomIndex];
+  // Filter by user's typed keyword
+  const matchedList = filterVideosByKeyword(videoList, userKeyword);
+  const candidatePool = matchedList.length > 0 ? matchedList : videoList;
+
+  const randomIndex = Math.floor(Math.random() * candidatePool.length);
+  return candidatePool[randomIndex];
 }
