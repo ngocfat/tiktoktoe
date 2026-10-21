@@ -1,21 +1,33 @@
 {
   "expo": {
-    "name": "tiktok_auto_app",
-    "slug": "tiktok_auto_app",
-    "version": "1.0.0",
+    "name": "TikTokToe",
+    "slug": "tiktoktoe",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0E14"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fatpro.tiktoktoe"
     },
     "android": {
+      "package": "com.fatpro.tiktoktoe",
+      "versionCode": 7,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+        "backgroundColor": "#0B0E14"
+      },
+      "permissions": [
+        "INTERNET",
+        "FOREGROUND_SERVICE",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
